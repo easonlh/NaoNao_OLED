@@ -9,7 +9,9 @@
       "Bash(git reset *)",
       "Bash(git rm *)",
       "Bash(git config *)",
-      "Bash(gh *)"
+      "Bash(gh *)",
+      "Bash(mkdir *)",
+      "Bash(cat *)"
     ]
   },
   "$version": 3
