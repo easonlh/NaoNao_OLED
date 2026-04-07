@@ -7,7 +7,9 @@
       "Bash(git add *)",
       "Bash(git commit *)",
       "Bash(git reset *)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(git config *)",
+      "Bash(gh *)"
     ]
   },
   "$version": 3
