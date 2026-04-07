@@ -118,6 +118,44 @@ pio device monitor
 3. **Wi-Fi connection failed**: Verify SSID and password in `include/config.h`
 4. **Compilation errors**: Install required libraries via `pio lib install`
 
+---
+
+## 🤖 OpenClaw Integration
+
+### Interact with OpenClaw
+
+This project supports integration with OpenClaw AI assistant via HTTP API for remote message pushing.
+
+#### Send Messages with curl
+
+```bash
+# Send message to OLED display
+curl -X POST http://<ESP32_IP_ADDRESS>/msg \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "Hello from OpenClaw!"
+```
+
+#### OpenClaw Skill Configuration
+
+Create a Skill in OpenClaw with the following configuration:
+
+```yaml
+name: esp32-oled-display
+description: Send messages to ESP32 OLED display
+endpoint: http://<ESP32_IP_ADDRESS>/msg
+method: POST
+headers:
+  Content-Type: application/x-www-form-urlencoded
+```
+
+#### Example Use Cases
+
+1. **Notification Push**: Automatically display new emails or messages on the OLED screen
+2. **Scheduled Reminders**: Set up timed tasks to show reminder information
+3. **Status Monitoring**: Display server status, weather information, etc.
+
+---
+
 ### License
 
 This project is for personal/educational use.
@@ -243,6 +281,44 @@ pio device monitor
 2. **文字乱码**: 确保调用了 `enableUTF8Print()`
 3. **Wi-Fi 连接失败**: 检查 `include/config.h` 中的 SSID 和密码
 4. **编译错误**: 通过 `pio lib install` 安装所需库
+
+---
+
+## 🤖 OpenClaw 集成
+
+### 与 OpenClaw 互动
+
+本项目支持与 OpenClaw AI 助手集成，通过 HTTP API 实现远程消息推送。
+
+#### 使用 curl 发送消息
+
+```bash
+# 发送消息到 OLED 屏幕
+curl -X POST http://<ESP32_IP_ADDRESS>/msg \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "Hello from OpenClaw!"
+```
+
+#### OpenClaw Skill 配置
+
+在 OpenClaw 中创建 Skill，配置以下参数：
+
+```yaml
+name: esp32-oled-display
+description: Send messages to ESP32 OLED display
+endpoint: http://<ESP32_IP_ADDRESS>/msg
+method: POST
+headers:
+  Content-Type: application/x-www-form-urlencoded
+```
+
+#### 示例场景
+
+1. **通知推送**: 当有新邮件、消息时，自动推送到 OLED 屏幕
+2. **定时提醒**: 设置定时任务，显示提醒信息
+3. **状态监控**: 显示服务器状态、天气信息等
+
+---
 
 ### 许可证
 

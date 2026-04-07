@@ -11,7 +11,9 @@
       "Bash(git config *)",
       "Bash(gh *)",
       "Bash(mkdir *)",
-      "Bash(cat *)"
+      "Bash(cat *)",
+      "Bash(git remote *)",
+      "Bash(git push *)"
     ]
   },
   "$version": 3
