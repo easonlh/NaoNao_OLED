@@ -8,19 +8,19 @@
 
 ### Project Overview
 
-A feature-rich PlatformIO ESP32 project that drives an SSD1306 128x64 OLED display via hardware I2C. Features include multi-screen modes, NTP clock, message queue, web UI, auto-dimming, screen saver, and rich animations.
+A feature-rich PlatformIO ESP32 project that drives a 0.96" SSD1306 128x64 OLED display via hardware I2C. Features **9 display modes** including real-time weather, crypto prices, GitHub stars, countdown timer, MQTT smart home integration, and OTA wireless updates.
 
 ### Quick Start
 
 ```bash
-# 1. Install PlatformIO (if not already installed)
+# 1. Install PlatformIO
 pip install platformio
 
 # 2. Clone and configure
 git clone https://github.com/YOUR_USERNAME/NaoNao_OLED.git
 cd NaoNao_OLED
 cp .env.example .env
-# Edit .env with your WiFi credentials
+# Edit .env with your credentials
 
 # 3. Build and upload
 source .env && pio run --target upload
@@ -31,17 +31,22 @@ pio device monitor -b 115200
 
 ### Features
 
-#### Multi-Screen Display
-- **Clock Mode**: NTP-synced real-time clock (HH:MM:SS) with blinking colon
-- **Date Mode**: Full date with Chinese weekday names
-- **Notification Mode**: Scrolling text messages with queue navigation
-- **Weather Mode**: Weather info with animated icons (placeholder for API)
-- **System Status**: IP address, WiFi signal, uptime, free heap
+#### 9 Display Modes
+- **Clock**: NTP-synced real-time clock (HH:MM:SS) with blinking colon
+- **Date**: Full date with Chinese weekday names
+- **Notification**: Scrolling text messages with queue navigation
+- **Weather**: Real weather from OpenWeatherMap API (temp, humidity, icon)
+- **System Status**: IP, WiFi signal, uptime, free heap
+- **Countdown Timer**: MM:SS countdown with progress bar, controllable via API
+- **Crypto Price**: Bitcoin price + 24h change from CoinGecko (no API key needed)
+- **GitHub Stars**: Repo star count and language from GitHub API
+- **MQTT Monitor**: Smart home event messages from MQTT broker
 
-#### Auto Screen Cycling
-- Cycles through all modes every 5 seconds
+#### Smart Screen Cycling
+- Auto-cycles through enabled modes every 5 seconds
+- Skips modes with no data (e.g., weather before first fetch)
 - Activity timer resets on new messages
-- Manual mode switching via API
+- Manual mode switching via `/mode` API
 
 #### Message Queue
 - Up to 10 messages in a circular queue
@@ -50,13 +55,12 @@ pio device monitor -b 115200
 
 #### Web UI Dashboard
 - Responsive web interface at `http://<ESP32_IP>/`
-- Send messages from browser
-- Real-time status monitoring
+- Send messages, control countdown timer, view status
 - Preset messages and clear button
-- JSON API: `/status`, `/messages`, `/clear`
+- JSON API for programmatic access
 
 #### Smart Brightness & Screen Saver
-- Auto-dimming based on time of day (full brightness 07:00-22:00, dimmed at night)
+- Auto-dimming based on time of day
 - Screen saver activates after 60s inactivity with floating stars
 - OLED burn-in prevention
 
@@ -67,15 +71,25 @@ pio device monitor -b 115200
 - WiFi signal strength bars
 - Screen saver stars with collision detection
 
+#### OTA Wireless Updates
+- Flash new firmware over WiFi, no USB needed
+- Password-protected for security
+- Disabled by default, enable via `.env`
+
 #### Modular Architecture
 ```
 src/
-├── main.cpp            # Application entry point
-├── config.cpp          # Configuration values
-├── display.cpp/h       # Screen rendering and mode management
-├── animations.cpp/h    # Animation classes
-├── message_queue.cpp/h # Message queue management
-└── http_server.cpp/h   # Web server and API handlers
+├── main.cpp                  # Application entry point
+├── config.cpp                # Configuration values
+├── display.cpp               # Screen rendering and mode management
+├── http_server.cpp           # Web server and API handlers
+├── weather_client.cpp        # OpenWeatherMap API client
+├── price_client.cpp          # CoinGecko API client
+├── github_client.cpp         # GitHub API client
+├── countdown_timer.cpp       # Countdown timer state machine
+├── mqtt_client_wrapper.cpp   # MQTT broker integration
+├── message_queue.cpp         # Message queue management
+└── animations.cpp            # Animation implementations
 ```
 
 ### Hardware Requirements
@@ -88,48 +102,43 @@ src/
 
 #### Wi-Fi Setup
 
-Create a `.env` file from the template and fill in your credentials:
-
 ```bash
 cp .env.example .env
 ```
 
-Then edit `.env`:
+Edit `.env`:
 
 ```ini
 WIFI_SSID=YourWiFiName
 WIFI_PASSWORD=YourWiFiPassword
 ```
 
-The credentials are injected at compile time via `platformio.ini` build flags. The `.env` file is **gitignored** and will not be committed.
+#### API & Service Configuration
 
-#### Other Settings (`src/config.cpp`)
-
-```cpp
-// NTP Time Server
-const char* NTP_SERVER = "pool.ntp.org";
-const long GMT_OFFSET_SEC = 8 * 3600;   // GMT+8 for China
-const int DAYLIGHT_OFFSET_SEC = 0;
-
-// Display Settings
-const int SCREEN_CYCLE_INTERVAL = 5000;  // Auto-switch interval (ms)
-const int SCROLL_SPEED = 30;             // Text scroll speed (ms/pixel)
-const int MSG_QUEUE_MAX_SIZE = 10;       // Max messages in queue
-
-// Brightness Settings
-const int BRIGHTNESS_DAY = 255;          // Daytime brightness
-const int BRIGHTNESS_NIGHT = 50;         // Nighttime brightness
-const int NIGHT_START_HOUR = 22;         // Night mode starts at 22:00
-const int DAY_START_HOUR = 7;            // Day mode starts at 07:00
-
-// Screen Saver
-const unsigned long SCREENSAVER_TIMEOUT = 60000;  // Activate after 60s
-```
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `WEATHER_API_KEY` | No | "" | [OpenWeatherMap](https://openweathermap.org/api) free API key |
+| `WEATHER_CITY` | No | Beijing | City name for weather |
+| `MQTT_BROKER` | No | "" | MQTT broker address (leave empty to disable) |
+| `MQTT_PORT` | No | 1883 | MQTT broker port |
+| `MQTT_CLIENT_ID` | No | NaoNao_OLED | MQTT client identifier |
+| `MQTT_USERNAME` | No | "" | MQTT username |
+| `MQTT_PASSWORD` | No | "" | MQTT password |
+| `MQTT_SUBSCRIBE_TOPIC` | No | naonao/cmd | Topic to subscribe |
+| `MQTT_PUBLISH_TOPIC` | No | naonao/status | Topic to publish status |
+| `GITHUB_REPO` | No | "" | GitHub repo (format: owner/repo) |
+| `OTA_HOSTNAME` | No | naonao-oled | OTA hostname |
+| `OTA_PASSWORD` | No | "" | OTA update password |
 
 ### Dependencies
 
-- **U8g2** (`olikraus/U8g2 @ ^2.36.18`) - Monochrome graphics library
-- **WiFi.h** / **WebServer.h** / **time.h** - Built into ESP32 Arduino framework
+| Library | Version | Purpose |
+|---------|---------|---------|
+| `olikraus/U8g2` | ^2.36.18 | OLED graphics |
+| `bblanchon/ArduinoJson` | ^7 | JSON parsing for APIs |
+| `knolleary/PubSubClient` | ^2.8 | MQTT client |
+| `WiFi.h` / `WebServer.h` / `time.h` | Built-in | ESP32 Arduino framework |
+| `HTTPClient` / `ArduinoOTA` | Built-in | ESP32 Arduino framework |
 
 ### API Reference
 
@@ -140,6 +149,31 @@ const unsigned long SCREENSAVER_TIMEOUT = 60000;  // Activate after 60s
 | `/status` | GET | JSON device status |
 | `/messages` | GET | JSON message queue info |
 | `/clear` | POST | Clear all messages |
+| `/timer` | GET | Get timer state |
+| `/timer` | POST | Control timer (start/pause/resume/reset) |
+| `/weather` | GET | JSON weather data |
+| `/price` | GET | JSON crypto price data |
+| `/mode` | POST | Switch display mode |
+| `/reboot` | POST | Reboot device |
+
+#### Timer Control
+
+```bash
+# Start 5-minute countdown
+curl -X POST http://<ESP32_IP>/timer \
+  -H "Content-Type: application/json" \
+  -d '{"action":"start","duration":300}'
+
+# Pause
+curl -X POST http://<ESP32_IP>/timer \
+  -H "Content-Type: application/json" \
+  -d '{"action":"pause"}'
+
+# Check status
+curl http://<ESP32_IP>/timer
+```
+
+#### Examples
 
 ```bash
 # Send a message
@@ -148,8 +182,13 @@ curl -X POST http://192.168.1.100/msg -d "Hello World!"
 # Check device status
 curl http://192.168.1.100/status
 
-# Clear message queue
-curl -X POST http://192.168.1.100/clear
+# Get weather data
+curl http://192.168.1.100/weather
+
+# Switch to clock mode
+curl -X POST http://192.168.1.100/mode \
+  -H "Content-Type: application/json" \
+  -d '{"mode":0}'
 ```
 
 ### Build & Upload
@@ -172,14 +211,24 @@ chmod +x upload.sh
 ./upload.sh
 ```
 
+### OTA Wireless Updates
+
+After configuring `OTA_HOSTNAME` and `OTA_PASSWORD` in `.env` and flashing once via USB:
+
+```bash
+# Upload over WiFi (replace with your ESP32 IP)
+pio run --target upload --upload-port <ESP32_IP>
+```
+
 ### Troubleshooting
 
 1. **Display not showing**: Check I2C wiring (SDA, SCL, VCC, GND)
 2. **Garbled text**: Ensure `enableUTF8Print()` is called in setup
-3. **Wi-Fi connection failed**: Verify credentials in `.env` file
-4. **Compilation errors**: Run `pio lib install olikraus/U8g2`
-5. **Screen too bright/dim**: Adjust `BRIGHTNESS_DAY` / `BRIGHTNESS_NIGHT` in `src/config.cpp`
-6. **Messages not appearing**: Check `/messages` endpoint
+3. **Wi-Fi connection failed**: Verify credentials in `.env`
+4. **Weather not working**: Set `WEATHER_API_KEY` in `.env` (free at openweathermap.org)
+5. **MQTT not connecting**: Set `MQTT_BROKER` to your broker address
+6. **Compilation errors**: Run `pio lib install` to fetch dependencies
+7. **Screen too bright/dim**: Adjust `BRIGHTNESS_DAY` / `BRIGHTNESS_NIGHT` in `src/config.cpp`
 
 ---
 
@@ -201,7 +250,7 @@ curl -X POST http://<ESP32_IP>/msg \
 
 ### 项目简介
 
-功能丰富的 PlatformIO ESP32 项目，通过硬件 I2C 驱动 SSD1306 128x64 OLED 显示屏。支持多屏幕模式、NTP 时钟、消息队列、Web UI、自动调光、屏幕保护和丰富动画。
+功能丰富的 PlatformIO ESP32 项目，通过硬件 I2C 驱动 0.96 寸 SSD1306 128x64 OLED 显示屏。支持 **9 种显示模式**，包括实时天气、加密货币价格、GitHub Star、倒计时、MQTT 智能家居和 OTA 无线升级。
 
 ### 快速开始
 
@@ -213,7 +262,7 @@ pip install platformio
 git clone https://github.com/YOUR_USERNAME/NaoNao_OLED.git
 cd NaoNao_OLED
 cp .env.example .env
-# 编辑 .env 填入 WiFi 信息
+# 编辑 .env 填入你的凭证
 
 # 3. 编译上传
 source .env && pio run --target upload
@@ -224,17 +273,22 @@ pio device monitor -b 115200
 
 ### 功能特性
 
-#### 多屏幕显示
-- **时钟模式**: NTP 同步实时时钟，带闪烁冒号
-- **日期模式**: 完整日期 + 中文星期
-- **通知模式**: 滚动文本消息，队列导航
-- **天气模式**: 天气信息 + 动画图标（预留 API）
-- **系统状态**: IP 地址、WiFi 信号、运行时间、可用内存
+#### 9 种显示模式
+- **时钟**: NTP 同步实时时钟 (HH:MM:SS)，冒号闪烁
+- **日期**: 完整日期 + 中文星期
+- **通知**: 滚动文本消息，队列导航
+- **天气**: OpenWeatherMap 实时数据（温度、湿度、图标）
+- **系统状态**: IP、WiFi 信号、运行时间、可用内存
+- **倒计时**: MM:SS 倒计时 + 进度条，API 可控
+- **加密货币**: CoinGecko BTC 价格 + 24h 涨跌（无需 API Key）
+- **GitHub Star**: 仓库 Star 数 + 编程语言
+- **MQTT 监控**: MQTT Broker 智能家居事件
 
-#### 自动屏幕切换
-- 每 5 秒自动切换模式
+#### 智能屏幕切换
+- 每 5 秒自动切换已启用的模式
+- 跳过无数据的模式（如天气首次拉取前）
 - 新消息时重置计时器
-- 支持 API 手动切换
+- 支持 `/mode` API 手动切换
 
 #### 消息队列
 - 最多 10 条消息循环存储
@@ -243,13 +297,12 @@ pio device monitor -b 115200
 
 #### Web UI 控制台
 - 响应式界面，访问 `http://<ESP32_IP>/`
-- 浏览器发送消息
-- 实时状态监控
+- 发送消息、控制倒计时、查看状态
 - 预设消息和一键清除
-- JSON API: `/status`、`/messages`、`/clear`
+- JSON API 供编程访问
 
 #### 智能亮度与屏保
-- 根据时间自动调光（07:00-22:00 全亮度，夜间降低）
+- 根据时间自动调光
 - 60 秒无操作激活屏保，带漂浮星星
 - 防止 OLED 烧屏
 
@@ -260,6 +313,11 @@ pio device monitor -b 115200
 - WiFi 信号强度条
 - 屏保星星碰撞检测
 
+#### OTA 无线升级
+- WiFi 刷写固件，无需 USB
+- 密码保护
+- 默认禁用，通过 `.env` 开启
+
 ### 硬件要求
 
 - **开发板**: ESP32 DevKit (esp32dev)
@@ -269,8 +327,6 @@ pio device monitor -b 115200
 ### 配置说明
 
 #### Wi-Fi 设置
-
-从模板创建 `.env` 文件并填入你的 WiFi 信息：
 
 ```bash
 cp .env.example .env
@@ -283,30 +339,22 @@ WIFI_SSID=你的WiFi名称
 WIFI_PASSWORD=你的WiFi密码
 ```
 
-凭证在编译时通过 `platformio.ini` 的 build flags 注入，`.env` 文件已加入 `.gitignore`，不会被提交。
+#### API 与服务配置
 
-#### 其他设置 (`src/config.cpp`)
-
-```cpp
-// NTP 时间服务器
-const char* NTP_SERVER = "pool.ntp.org";
-const long GMT_OFFSET_SEC = 8 * 3600;   // 中国时区 GMT+8
-const int DAYLIGHT_OFFSET_SEC = 0;
-
-// 显示设置
-const int SCREEN_CYCLE_INTERVAL = 5000;  // 自动切换间隔（毫秒）
-const int SCROLL_SPEED = 30;             // 滚动速度（毫秒/像素）
-const int MSG_QUEUE_MAX_SIZE = 10;       // 队列最大消息数
-
-// 亮度设置
-const int BRIGHTNESS_DAY = 255;          // 白天亮度
-const int BRIGHTNESS_NIGHT = 50;         // 夜间亮度
-const int NIGHT_START_HOUR = 22;         // 夜间模式 22:00 开始
-const int DAY_START_HOUR = 7;            // 白天模式 07:00 开始
-
-// 屏幕保护
-const unsigned long SCREENSAVER_TIMEOUT = 60000;  // 60 秒后激活
-```
+| 变量 | 必需 | 默认值 | 说明 |
+|------|------|--------|------|
+| `WEATHER_API_KEY` | 否 | "" | [OpenWeatherMap](https://openweathermap.org/api) 免费 API Key |
+| `WEATHER_CITY` | 否 | Beijing | 天气查询城市 |
+| `MQTT_BROKER` | 否 | "" | MQTT Broker 地址，留空禁用 |
+| `MQTT_PORT` | 否 | 1883 | MQTT Broker 端口 |
+| `MQTT_CLIENT_ID` | 否 | NaoNao_OLED | MQTT 客户端 ID |
+| `MQTT_USERNAME` | 否 | "" | MQTT 用户名 |
+| `MQTT_PASSWORD` | 否 | "" | MQTT 密码 |
+| `MQTT_SUBSCRIBE_TOPIC` | 否 | naonao/cmd | 订阅主题 |
+| `MQTT_PUBLISH_TOPIC` | 否 | naonao/status | 发布主题 |
+| `GITHUB_REPO` | 否 | "" | GitHub 仓库 (格式: owner/repo) |
+| `OTA_HOSTNAME` | 否 | naonao-oled | OTA 主机名 |
+| `OTA_PASSWORD` | 否 | "" | OTA 升级密码 |
 
 ### API 接口
 
@@ -317,6 +365,31 @@ const unsigned long SCREENSAVER_TIMEOUT = 60000;  // 60 秒后激活
 | `/status` | GET | JSON 设备状态 |
 | `/messages` | GET | JSON 消息队列信息 |
 | `/clear` | POST | 清除所有消息 |
+| `/timer` | GET | 获取倒计时状态 |
+| `/timer` | POST | 控制倒计时 (start/pause/resume/reset) |
+| `/weather` | GET | JSON 天气数据 |
+| `/price` | GET | JSON 加密货币价格 |
+| `/mode` | POST | 切换显示模式 |
+| `/reboot` | POST | 重启设备 |
+
+#### 倒计时控制
+
+```bash
+# 开始 5 分钟倒计时
+curl -X POST http://<ESP32_IP>/timer \
+  -H "Content-Type: application/json" \
+  -d '{"action":"start","duration":300}'
+
+# 暂停
+curl -X POST http://<ESP32_IP>/timer \
+  -H "Content-Type: application/json" \
+  -d '{"action":"pause"}'
+
+# 查看状态
+curl http://<ESP32_IP>/timer
+```
+
+#### 示例
 
 ```bash
 # 发送消息
@@ -325,8 +398,13 @@ curl -X POST http://192.168.1.100/msg -d "你好世界！"
 # 查看设备状态
 curl http://192.168.1.100/status
 
-# 清除消息队列
-curl -X POST http://192.168.1.100/clear
+# 获取天气数据
+curl http://192.168.1.100/weather
+
+# 切换到时钟模式
+curl -X POST http://192.168.1.100/mode \
+  -H "Content-Type: application/json" \
+  -d '{"mode":0}'
 ```
 
 ### 编译与上传
@@ -349,14 +427,24 @@ chmod +x upload.sh
 ./upload.sh
 ```
 
+### OTA 无线升级
+
+配置 `.env` 中的 `OTA_HOSTNAME` 和 `OTA_PASSWORD` 并通过 USB 刷入一次后：
+
+```bash
+# 通过 WiFi 上传固件（替换为你的 ESP32 IP）
+pio run --target upload --upload-port <ESP32_IP>
+```
+
 ### 常见问题
 
 1. **屏幕不显示**: 检查 I2C 接线 (SDA, SCL, VCC, GND)
 2. **文字乱码**: 确保调用了 `enableUTF8Print()`
 3. **Wi-Fi 连接失败**: 检查 `.env` 中的凭证
-4. **编译错误**: 运行 `pio lib install olikraus/U8g2`
-5. **屏幕太亮/太暗**: 调整 `src/config.cpp` 中的 `BRIGHTNESS_DAY` / `BRIGHTNESS_NIGHT`
-6. **消息不显示**: 检查 `/messages` 端点
+4. **天气不工作**: 在 `.env` 设置 `WEATHER_API_KEY`（openweathermap.org 免费注册）
+5. **MQTT 不连接**: 设置 `MQTT_BROKER` 为你的 Broker 地址
+6. **编译错误**: 运行 `pio lib install` 拉取依赖
+7. **屏幕太亮/太暗**: 调整 `src/config.cpp` 中的 `BRIGHTNESS_DAY` / `BRIGHTNESS_NIGHT`
 
 ---
 
@@ -384,3 +472,6 @@ curl -X POST http://<ESP32_IP>/msg \
 - [U8g2 库](https://github.com/olikraus/u8g2)
 - [ESP32 Arduino 框架](https://github.com/espressif/arduino-esp32)
 - [NTP 时间服务器](https://www.ntppool.org/)
+- [OpenWeatherMap API](https://openweathermap.org/api)
+- [CoinGecko API](https://www.coingecko.com/api/documentation)
+- [GitHub API](https://docs.github.com/en/rest)

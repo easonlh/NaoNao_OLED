@@ -12,7 +12,6 @@
 # Environment & Config (contains sensitive info)
 .env
 .env.local
-include/config.h
 
 # Claude Code
 .qwen/

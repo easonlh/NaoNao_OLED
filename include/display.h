@@ -6,11 +6,15 @@
 
 // 屏幕模式枚举
 enum ScreenMode {
-  MODE_CLOCK,       // 时钟模式
-  MODE_DATE,        // 日期模式
-  MODE_NOTIFICATION,// 通知模式
-  MODE_WEATHER,     // 天气信息模式
-  MODE_SYSTEM       // 系统状态模式
+  MODE_CLOCK,        // 0 - 时钟模式
+  MODE_DATE,         // 1 - 日期模式
+  MODE_NOTIFICATION, // 2 - 通知模式
+  MODE_WEATHER,      // 3 - 天气模式（真实数据）
+  MODE_SYSTEM,       // 4 - 系统状态模式
+  MODE_COUNTDOWN,    // 5 - 倒计时模式
+  MODE_PRICE,        // 6 - 加密货币价格模式
+  MODE_GITHUB,       // 7 - GitHub Star 模式
+  MODE_MQTT_MONITOR  // 8 - MQTT 消息模式
 };
 
 extern ScreenMode currentMode;
@@ -21,37 +25,26 @@ extern bool screenSaverActive;
 // 显示初始化
 void initDisplay(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
 
-// 绘制时钟界面
+// 绘制函数
 void drawClock(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
-
-// 绘制日期界面
 void drawDate(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
-
-// 绘制通知界面
 void drawNotification(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
-
-// 绘制天气信息界面
 void drawWeatherInfo(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
-
-// 绘制系统状态界面
 void drawSystemStatus(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
-
-// 绘制屏保
+void drawCountdownTimer(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
+void drawPriceDisplay(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
+void drawGitHubStars(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
+void drawMqttMonitor(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
 void drawScreenSaver(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
 
-// 绘制顶部状态栏
+// 状态栏
 void drawStatusBar(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
 
-// 切换屏幕模式
+// 模式切换
 void switchMode(ScreenMode mode);
-
-// 自动切换屏幕模式
 void autoCycleMode();
-
-// 检查并激活屏保
+ScreenMode getNextEnabledMode(ScreenMode current);
 void checkScreenSaver();
-
-// 调整亮度（根据时间段）
 void adjustBrightness(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
 
 #endif

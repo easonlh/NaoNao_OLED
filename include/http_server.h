@@ -7,23 +7,17 @@
 class NaoNaoServer {
 private:
   WebServer* server;
-  
-  // 处理消息 POST 请求
-  void handleMsg();
-  
-  // 处理主页 GET 请求（Web UI）
+
   void handleRoot();
-  
-  // 处理状态查询
+  void handleMsg();
   void handleStatus();
-  
-  // 处理消息历史查询
   void handleMessages();
-  
-  // 处理清除消息
   void handleClearMessages();
-  
-  // 生成 Web UI HTML
+  void handleTimer();
+  void handleWeather();
+  void handlePrice();
+  void handleMode();
+  void handleReboot();
   String generateWebPage();
 
 public:

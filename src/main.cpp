@@ -3,12 +3,18 @@
 #include <Wire.h>
 #include <WiFi.h>
 #include <time.h>
+#include <ArduinoOTA.h>
 
 #include "config.h"
 #include "display.h"
 #include "animations.h"
 #include "message_queue.h"
 #include "http_server.h"
+#include "weather_client.h"
+#include "price_client.h"
+#include "github_client.h"
+#include "countdown_timer.h"
+#include "mqtt_client_wrapper.h"
 
 // ==================== 硬件初始化 ====================
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
@@ -34,7 +40,7 @@ int getMsgCount() {
 }
 
 int getCurrentMsgIndex() {
-  return 0; // 简化实现
+  return 0;
 }
 
 // ==================== WiFi 连接 ====================
@@ -42,10 +48,7 @@ void connectWiFi() {
   Serial.println("\n========== WiFi Connect ==========");
   Serial.print("SSID: ");
   Serial.println(WIFI_SSID);
-  Serial.print("Password length: ");
-  Serial.println(strlen(WIFI_PASSWORD));
 
-  // 检查是否使用默认占位符（未配置 .env）
   if (strcmp(WIFI_SSID, "YOUR_WIFI_SSID") == 0) {
     Serial.println("ERROR: WiFi SSID not configured!");
     Serial.println("Please set your WiFi credentials in .env file:");
@@ -74,38 +77,26 @@ void connectWiFi() {
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
 
   int attempts = 0;
-  const int maxAttempts = 40; // 20秒超时
+  const int maxAttempts = 40;
 
   while (WiFi.status() != WL_CONNECTED && attempts < maxAttempts) {
     delay(500);
     Serial.print(".");
-
-    // 每5次打印当前状态
     if (attempts % 10 == 0 && attempts > 0) {
       wl_status_t status = WiFi.status();
       Serial.printf("\n[Status: %d] ", status);
       switch (status) {
-        case WL_NO_SSID_AVAIL:
-          Serial.print("SSID not found!");
-          break;
-        case WL_CONNECT_FAILED:
-          Serial.print("Password incorrect!");
-          break;
-        case WL_CONNECTION_LOST:
-          Serial.print("Connection lost!");
-          break;
-        case WL_DISCONNECTED:
-          Serial.print("Disconnected...");
-          break;
-        default:
-          Serial.print("Connecting...");
-          break;
+        case WL_NO_SSID_AVAIL: Serial.print("SSID not found!"); break;
+        case WL_CONNECT_FAILED: Serial.print("Password incorrect!"); break;
+        case WL_CONNECTION_LOST: Serial.print("Connection lost!"); break;
+        case WL_DISCONNECTED: Serial.print("Disconnected..."); break;
+        default: Serial.print("Connecting..."); break;
       }
     }
     attempts++;
   }
 
-  Serial.println(); // 换行
+  Serial.println();
 
   if (WiFi.status() == WL_CONNECTED) {
     Serial.println("WiFi Connected!");
@@ -125,23 +116,7 @@ void connectWiFi() {
     u8g2.print(WiFi.localIP().toString());
     u8g2.sendBuffer();
   } else {
-    wl_status_t status = WiFi.status();
-    Serial.printf("WiFi Failed! Status: %d\n", status);
-    switch (status) {
-      case WL_NO_SSID_AVAIL:
-        Serial.println("Reason: SSID not found. Check your WiFi name.");
-        break;
-      case WL_CONNECT_FAILED:
-        Serial.println("Reason: Wrong password.");
-        break;
-      case WL_CONNECTION_LOST:
-        Serial.println("Reason: Connection lost during handshake.");
-        break;
-      default:
-        Serial.println("Reason: Timeout or unknown error.");
-        break;
-    }
-
+    Serial.printf("WiFi Failed! Status: %d\n", WiFi.status());
     u8g2.clearBuffer();
     u8g2.setFont(u8g2_font_wqy12_t_gb2312);
     u8g2.setCursor(10, 25);
@@ -156,7 +131,7 @@ void connectWiFi() {
 // ==================== NTP 时间同步 ====================
 void initNTP() {
   configTime(GMT_OFFSET_SEC, DAYLIGHT_OFFSET_SEC, NTP_SERVER);
-  
+
   Serial.println("Waiting for NTP time...");
   struct tm timeinfo;
   int attempts = 0;
@@ -164,7 +139,7 @@ void initNTP() {
     delay(500);
     attempts++;
   }
-  
+
   if (attempts < 30) {
     Serial.println("Time synchronized!");
     lastNtpSyncTime = millis();
@@ -181,13 +156,38 @@ void syncNTP() {
   }
 }
 
+// ==================== OTA 初始化 ====================
+void initOTA() {
+  // OTA hostname and password are configured in src/config.cpp
+  // For simplicity, use placeholder values. To enable OTA,
+  // modify the values in config.cpp directly.
+  ArduinoOTA.setHostname("naonao-oled");
+  ArduinoOTA.setPassword("naonao123");
+
+  ArduinoOTA.onStart([]() {
+    String type = (ArduinoOTA.getCommand() == U_FLASH) ? "sketch" : "filesystem";
+    Serial.println("OTA Start: " + type);
+  });
+  ArduinoOTA.onEnd([]() {
+    Serial.println("\nOTA End");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    Serial.printf("OTA Progress: %u%%\r", (progress / (total / 100)));
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("OTA Error[%u]: ", error);
+  });
+  ArduinoOTA.begin();
+  Serial.println("OTA ready");
+}
+
 // ==================== 主程序 ====================
 void setup() {
   Serial.begin(115200);
-  
+
   // 初始化显示
   initDisplay(u8g2);
-  
+
   // 显示启动信息
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_ncenB14_tr);
@@ -198,34 +198,60 @@ void setup() {
   u8g2.print("Starting up...");
   u8g2.sendBuffer();
   delay(1000);
-  
+
   // 连接 WiFi
   connectWiFi();
-  
+
   // 初始化 NTP
   if (WiFi.status() == WL_CONNECTED) {
     initNTP();
   }
-  
+
   // 初始化消息队列
   msgQueue.addMessage(displayMessage);
-  
+
+  // 初始化 API 客户端
+  weatherClient.begin();
+  priceClient.begin();
+  githubClient.begin();
+
+  // 初始化 MQTT
+  if (WiFi.status() == WL_CONNECTED) {
+    mqttWrapper.begin();
+    if (mqttWrapper.isConnected()) {
+      Serial.println("MQTT connected");
+    }
+  }
+
+  // 初始化 OTA (hostname and password in initOTA())
+  // To enable: modify initOTA() in src/main.cpp with your hostname/password
+
   // 启动 HTTP 服务器
   naoNaoServer.begin();
-  
+
   Serial.println("Setup complete!");
 }
 
 void loop() {
   // 处理 HTTP 请求
   naoNaoServer.handleClient();
-  
+
+  // OTA 处理 (disabled by default, enable by calling initOTA() in setup())
+
   // NTP 定期同步
-  if (WiFi.status() == WL_CONNECTED && 
+  if (WiFi.status() == WL_CONNECTED &&
       millis() - lastNtpSyncTime > NTP_SYNC_INTERVAL) {
     syncNTP();
   }
-  
+
+  // 更新 API 客户端（非阻塞）
+  weatherClient.update();
+  priceClient.update();
+  githubClient.update();
+
+  // MQTT 处理
+  mqttWrapper.loop();
+
   // 更新消息队列到显示变量
   Message* currentMsg = msgQueue.getCurrentMessage();
   if (currentMsg && strcmp(currentMsg->text, displayMessage) != 0) {
@@ -234,35 +260,35 @@ void loop() {
     scrollPos = 0;
     lastActivityTime = millis();
   }
-  
+
+  // 更新倒计时
+  countdownTimer.update();
+
   // 更新动画
   bird.update();
   stars.update();
   weatherIcon.update();
   screenSaver.update();
-  
+
   // 自动切换模式
   autoCycleMode();
-  
+
   // 检查屏保
   checkScreenSaver();
-  
+
   // 调整亮度
   adjustBrightness(u8g2);
-  
+
   // 渲染显示
   u8g2.clearBuffer();
-  
+
   if (screenSaverActive) {
-    // 屏保模式
     drawScreenSaver(u8g2);
     screenSaver.draw(u8g2);
   } else {
-    // 根据当前模式绘制不同界面
     switch (currentMode) {
       case MODE_CLOCK:
         drawClock(u8g2);
-        // 在时钟模式右上角显示小鸟（不遮挡时间文字）
         bird.x = 75;
         bird.y = 8;
         bird.draw(u8g2);
@@ -275,18 +301,33 @@ void loop() {
       case MODE_NOTIFICATION:
         drawNotification(u8g2);
         break;
-        
+
       case MODE_WEATHER:
         drawWeatherInfo(u8g2);
-        weatherIcon.drawSunny(u8g2, 100, 30);
         break;
-        
+
       case MODE_SYSTEM:
         drawSystemStatus(u8g2);
         break;
+
+      case MODE_COUNTDOWN:
+        drawCountdownTimer(u8g2);
+        break;
+
+      case MODE_PRICE:
+        drawPriceDisplay(u8g2);
+        break;
+
+      case MODE_GITHUB:
+        drawGitHubStars(u8g2);
+        break;
+
+      case MODE_MQTT_MONITOR:
+        drawMqttMonitor(u8g2);
+        break;
     }
   }
-  
+
   u8g2.sendBuffer();
   delay(10);
 }
