@@ -11,8 +11,11 @@
 
 # Environment & Config (contains sensitive info)
 .env
+.env.local
 include/config.h
-simple(EasondeMac-mini.local)/config.h
+
+# Claude Code
+.qwen/
 
 # Build artifacts
 build/
