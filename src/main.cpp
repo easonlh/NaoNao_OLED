@@ -15,6 +15,7 @@
 #include "github_client.h"
 #include "countdown_timer.h"
 #include "mqtt_client_wrapper.h"
+#include "servo_control.h"
 
 // ==================== 硬件初始化 ====================
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
@@ -220,6 +221,10 @@ void setup() {
 
   // 启动 HTTP 服务器
   naoNaoServer.begin();
+
+  // 初始化舵机
+  servoCtrl.begin();
+  Serial.println("Servo initialized");
 
   Serial.println("Setup complete!");
 }
