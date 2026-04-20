@@ -19,6 +19,7 @@ public:
 
   void begin();
   void setSpeed(int speed);  // 0-180, 90=停止
+  void setSpeedUs(int microseconds);  // 直接写入微秒值 (500-2500)
   void stop();
   int getSpeed();
   bool isAttached();

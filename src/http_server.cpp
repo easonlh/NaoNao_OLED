@@ -250,10 +250,22 @@ void NaoNaoServer::handleServo() {
       resp["speed"] = servoCtrl.getSpeed();
       resp["attached"] = servoCtrl.isAttached();
       resp["stopped"] = (servoCtrl.getSpeed() == 90);
+    } else if (strcmp(action, "calibrate") == 0) {
+      int us = doc["us"] | 1500;
+      servoCtrl.setSpeedUs(us);
+      resp["ok"] = true;
+      resp["us"] = us;
+      resp["message"] = "PWM set (adjust us until servo moves)";
     } else {
       server->send(400, "application/json", "{\"error\":\"Unknown action\"}");
       return;
     }
+  } else if (doc.containsKey("us")) {
+    int us = doc["us"];
+    servoCtrl.setSpeedUs(us);
+    resp["ok"] = true;
+    resp["us"] = us;
+    resp["message"] = "PWM set";
   } else if (doc.containsKey("speed")) {
     int speed = doc["speed"];
     servoCtrl.setSpeed(speed);
