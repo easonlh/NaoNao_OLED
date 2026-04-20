@@ -49,7 +49,7 @@ void connectWiFi() {
   Serial.print("SSID: ");
   Serial.println(WIFI_SSID);
 
-  if (strcmp(WIFI_SSID, "YOUR_WIFI_SSID") == 0) {
+  if (strlen(WIFI_SSID) == 0 || strcmp(WIFI_SSID, "YOUR_WIFI_SSID") == 0) {
     Serial.println("ERROR: WiFi SSID not configured!");
     Serial.println("Please set your WiFi credentials in .env file:");
     Serial.println("  cp .env.example .env");
@@ -156,31 +156,6 @@ void syncNTP() {
   }
 }
 
-// ==================== OTA 初始化 ====================
-void initOTA() {
-  // OTA hostname and password are configured in src/config.cpp
-  // For simplicity, use placeholder values. To enable OTA,
-  // modify the values in config.cpp directly.
-  ArduinoOTA.setHostname("naonao-oled");
-  ArduinoOTA.setPassword("naonao123");
-
-  ArduinoOTA.onStart([]() {
-    String type = (ArduinoOTA.getCommand() == U_FLASH) ? "sketch" : "filesystem";
-    Serial.println("OTA Start: " + type);
-  });
-  ArduinoOTA.onEnd([]() {
-    Serial.println("\nOTA End");
-  });
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    Serial.printf("OTA Progress: %u%%\r", (progress / (total / 100)));
-  });
-  ArduinoOTA.onError([](ota_error_t error) {
-    Serial.printf("OTA Error[%u]: ", error);
-  });
-  ArduinoOTA.begin();
-  Serial.println("OTA ready");
-}
-
 // ==================== 主程序 ====================
 void setup() {
   Serial.begin(115200);
@@ -188,7 +163,7 @@ void setup() {
   // 初始化显示
   initDisplay(u8g2);
 
-  // 显示启动信息
+  // 显示启动画面
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_ncenB14_tr);
   u8g2.setCursor(20, 35);
@@ -197,6 +172,26 @@ void setup() {
   u8g2.setCursor(15, 55);
   u8g2.print("Starting up...");
   u8g2.sendBuffer();
+
+  // I2C 诊断扫描
+  Serial.println("\n========== I2C Scan ==========");
+  Wire.begin();
+  byte count = 0;
+  for (byte addr = 1; addr < 127; addr++) {
+    Wire.beginTransmission(addr);
+    byte error = Wire.endTransmission();
+    if (error == 0) {
+      Serial.printf("Found device at 0x%02X\n", addr);
+      count++;
+    }
+  }
+  if (count == 0) {
+    Serial.println("NO I2C devices found!");
+    Serial.println("Check: SDA=21, SCL=22, VCC, GND");
+  }
+  Serial.printf("Found %d I2C device(s)\n", count);
+  Serial.println("================================\n");
+
   delay(1000);
 
   // 连接 WiFi
@@ -223,9 +218,6 @@ void setup() {
     }
   }
 
-  // 初始化 OTA (hostname and password in initOTA())
-  // To enable: modify initOTA() in src/main.cpp with your hostname/password
-
   // 启动 HTTP 服务器
   naoNaoServer.begin();
 
@@ -235,8 +227,6 @@ void setup() {
 void loop() {
   // 处理 HTTP 请求
   naoNaoServer.handleClient();
-
-  // OTA 处理 (disabled by default, enable by calling initOTA() in setup())
 
   // NTP 定期同步
   if (WiFi.status() == WL_CONNECTED &&

@@ -8,7 +8,7 @@
 
 ### Project Overview
 
-A feature-rich PlatformIO ESP32 project that drives a 0.96" SSD1306 128x64 OLED display via hardware I2C. Features **9 display modes** including real-time weather, crypto prices, GitHub stars, countdown timer, MQTT smart home integration, and OTA wireless updates.
+A feature-rich PlatformIO ESP32 project that drives a 0.96" SSD1306 128x64 OLED display via hardware I2C. Features **9 display modes** including real-time weather, crypto prices, GitHub stars, countdown timer, MQTT smart home integration, OTA wireless updates, and **SG90 servo control** via HTTP API.
 
 ### Quick Start
 
@@ -89,7 +89,8 @@ src/
 ├── countdown_timer.cpp       # Countdown timer state machine
 ├── mqtt_client_wrapper.cpp   # MQTT broker integration
 ├── message_queue.cpp         # Message queue management
-└── animations.cpp            # Animation implementations
+├── animations.cpp            # Animation implementations
+└── servo_control.cpp         # SG90 servo PWM control
 ```
 
 ### Hardware Requirements
@@ -97,6 +98,10 @@ src/
 - **Board**: ESP32 DevKit (esp32dev)
 - **Display**: SSD1306 128x64 OLED (Hardware I2C)
 - **Wiring**: SDA, SCL, VCC (3.3V), GND
+- **Servo (optional)**: SG90 360° continuous rotation servo
+  - Red wire → VIN
+  - Brown wire → GND
+  - Yellow wire → GPIO18 (D18)
 
 ### Configuration
 
@@ -137,6 +142,7 @@ WIFI_PASSWORD=YourWiFiPassword
 | `olikraus/U8g2` | ^2.36.18 | OLED graphics |
 | `bblanchon/ArduinoJson` | ^7 | JSON parsing for APIs |
 | `knolleary/PubSubClient` | ^2.8 | MQTT client |
+| `madhephaestus/ESP32Servo` | ^3.2.0 | SG90 servo PWM control |
 | `WiFi.h` / `WebServer.h` / `time.h` | Built-in | ESP32 Arduino framework |
 | `HTTPClient` / `ArduinoOTA` | Built-in | ESP32 Arduino framework |
 
@@ -155,6 +161,8 @@ WIFI_PASSWORD=YourWiFiPassword
 | `/price` | GET | JSON crypto price data |
 | `/mode` | POST | Switch display mode |
 | `/reboot` | POST | Reboot device |
+| `/servo` | GET | Get servo status |
+| `/servo` | POST | Control servo speed |
 
 #### Timer Control
 
@@ -171,6 +179,24 @@ curl -X POST http://<ESP32_IP>/timer \
 
 # Check status
 curl http://<ESP32_IP>/timer
+```
+
+#### Servo Control
+
+```bash
+# Set servo speed (0-180, 90=stop)
+# 0=full reverse, 180=full forward
+curl -X POST http://<ESP32_IP>/servo \
+  -H "Content-Type: application/json" \
+  -d '{"speed":120}'
+
+# Stop servo
+curl -X POST http://<ESP32_IP>/servo \
+  -H "Content-Type: application/json" \
+  -d '{"action":"stop"}'
+
+# Check status
+curl http://<ESP32_IP>/servo
 ```
 
 #### Examples
@@ -242,7 +268,13 @@ curl -X POST http://<ESP32_IP>/msg \
   -d "Hello from OpenClaw!"
 ```
 
-**Use cases**: notification push, scheduled reminders, server status monitoring, smart home alerts.
+**Use cases**: notification push, scheduled reminders, server status monitoring, smart home alerts, **servo control** (e.g., robot arm, door lock, fan speed).
+
+```bash
+# Control SG90 servo via OpenClaw
+curl -X POST http://<ESP32_IP>/servo \
+  -H "Content-Type: application/json" \
+  -d '{"speed":120}'
 
 ---
 
@@ -250,7 +282,7 @@ curl -X POST http://<ESP32_IP>/msg \
 
 ### 项目简介
 
-功能丰富的 PlatformIO ESP32 项目，通过硬件 I2C 驱动 0.96 寸 SSD1306 128x64 OLED 显示屏。支持 **9 种显示模式**，包括实时天气、加密货币价格、GitHub Star、倒计时、MQTT 智能家居和 OTA 无线升级。
+功能丰富的 PlatformIO ESP32 项目，通过硬件 I2C 驱动 0.96 寸 SSD1306 128x64 OLED 显示屏。支持 **9 种显示模式**，包括实时天气、加密货币价格、GitHub Star、倒计时、MQTT 智能家居、OTA 无线升级，以及 **SG90 舵机 HTTP API 控制**。
 
 ### 快速开始
 
@@ -323,6 +355,10 @@ pio device monitor -b 115200
 - **开发板**: ESP32 DevKit (esp32dev)
 - **显示屏**: SSD1306 128x64 OLED (硬件 I2C)
 - **接线**: SDA, SCL, VCC (3.3V), GND
+- **舵机（可选）**: SG90 360° 连续旋转舵机
+  - 红线 → VIN
+  - 棕线 → GND
+  - 黄线 → GPIO18 (D18)
 
 ### 配置说明
 
@@ -371,6 +407,8 @@ WIFI_PASSWORD=你的WiFi密码
 | `/price` | GET | JSON 加密货币价格 |
 | `/mode` | POST | 切换显示模式 |
 | `/reboot` | POST | 重启设备 |
+| `/servo` | GET | 获取舵机状态 |
+| `/servo` | POST | 控制舵机速度 |
 
 #### 倒计时控制
 
@@ -387,6 +425,24 @@ curl -X POST http://<ESP32_IP>/timer \
 
 # 查看状态
 curl http://<ESP32_IP>/timer
+```
+
+#### 舵机控制
+
+```bash
+# 设置舵机速度 (0-180, 90=停止)
+# 0=全速反转, 180=全速正转
+curl -X POST http://<ESP32_IP>/servo \
+  -H "Content-Type: application/json" \
+  -d '{"speed":120}'
+
+# 停止舵机
+curl -X POST http://<ESP32_IP>/servo \
+  -H "Content-Type: application/json" \
+  -d '{"action":"stop"}'
+
+# 查看状态
+curl http://<ESP32_IP>/servo
 ```
 
 #### 示例

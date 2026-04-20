@@ -18,6 +18,7 @@ private:
   void handlePrice();
   void handleMode();
   void handleReboot();
+  void handleServo();
   String generateWebPage();
 
 public:

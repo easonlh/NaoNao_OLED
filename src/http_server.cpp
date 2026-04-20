@@ -6,6 +6,7 @@
 #include "github_client.h"
 #include "countdown_timer.h"
 #include "display.h"
+#include "servo_control.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
@@ -25,6 +26,8 @@ void NaoNaoServer::begin() {
   server->on("/price", HTTP_GET, [this]() { handlePrice(); });
   server->on("/mode", HTTP_POST, [this]() { handleMode(); });
   server->on("/reboot", HTTP_POST, [this]() { handleReboot(); });
+  server->on("/servo", HTTP_GET, [this]() { handleServo(); });
+  server->on("/servo", HTTP_POST, [this]() { handleServo(); });
   server->begin();
 }
 
@@ -210,6 +213,61 @@ void NaoNaoServer::handleMode() {
   } else {
     server->send(400, "application/json", "{\"error\":\"Invalid mode\"}");
   }
+}
+
+void NaoNaoServer::handleServo() {
+  if (server->method() == HTTP_GET) {
+    StaticJsonDocument<128> doc;
+    doc["speed"] = servoCtrl.getSpeed();
+    doc["attached"] = servoCtrl.isAttached();
+    doc["stopped"] = (servoCtrl.getSpeed() == 90);
+    char buf[128];
+    serializeJson(doc, buf, sizeof(buf));
+    server->send(200, "application/json", buf);
+    return;
+  }
+
+  // POST: accept JSON body
+  String body = server->arg("plain");
+  StaticJsonDocument<128> doc;
+  DeserializationError error = deserializeJson(doc, body);
+
+  if (error) {
+    server->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+    return;
+  }
+
+  StaticJsonDocument<128> resp;
+
+  if (doc.containsKey("action")) {
+    const char* action = doc["action"];
+    if (strcmp(action, "stop") == 0) {
+      servoCtrl.stop();
+      resp["ok"] = true;
+      resp["speed"] = 90;
+      resp["message"] = "Servo stopped";
+    } else if (strcmp(action, "status") == 0) {
+      resp["speed"] = servoCtrl.getSpeed();
+      resp["attached"] = servoCtrl.isAttached();
+      resp["stopped"] = (servoCtrl.getSpeed() == 90);
+    } else {
+      server->send(400, "application/json", "{\"error\":\"Unknown action\"}");
+      return;
+    }
+  } else if (doc.containsKey("speed")) {
+    int speed = doc["speed"];
+    servoCtrl.setSpeed(speed);
+    resp["ok"] = true;
+    resp["speed"] = speed;
+    resp["message"] = "Speed set";
+  } else {
+    server->send(400, "application/json", "{\"error\":\"Missing speed or action\"}");
+    return;
+  }
+
+  char buf[128];
+  serializeJson(resp, buf, sizeof(buf));
+  server->send(200, "application/json", buf);
 }
 
 void NaoNaoServer::handleReboot() {
