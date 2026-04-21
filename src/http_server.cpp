@@ -269,7 +269,7 @@ void NaoNaoServer::handleServo() {
       // Short burst in a direction
       const char* dir = doc["direction"] | "cw";
       unsigned long duration = doc["duration"] | 500;
-      int pulseSpeed = (strcmp(dir, "cw") == 0 || strcmp(dir, "forward") == 0) ? 180 : 0;
+      int pulseSpeed = (strcmp(dir, "cw") == 0 || strcmp(dir, "clockwise") == 0) ? 0 : 180;
       servoCtrl.setSpeed(pulseSpeed);
       delay(duration);
       servoCtrl.setSpeed(90);
