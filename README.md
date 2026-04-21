@@ -183,9 +183,14 @@ curl http://<ESP32_IP>/timer
 
 #### Servo Control
 
+Servo: SG90 360° continuous rotation, wired to GPIO18.
+
 ```bash
-# Set servo speed (0-180, 90=stop)
-# 0=full reverse, 180=full forward
+# Get status
+curl http://<ESP32_IP>/servo
+# Response: {"speed":90,"attached":true,"stopped":true}
+
+# Set speed (0=full reverse, 90=stop, 180=full forward)
 curl -X POST http://<ESP32_IP>/servo \
   -H "Content-Type: application/json" \
   -d '{"speed":120}'
@@ -195,9 +200,23 @@ curl -X POST http://<ESP32_IP>/servo \
   -H "Content-Type: application/json" \
   -d '{"action":"stop"}'
 
-# Check status
-curl http://<ESP32_IP>/servo
+# Rotate for N milliseconds then auto-stop
+curl -X POST http://<ESP32_IP>/servo \
+  -H "Content-Type: application/json" \
+  -d '{"action":"rotate","speed":180,"duration":2000}'
+
+# Quick pulse in a direction (then auto-stop)
+curl -X POST http://<ESP32_IP>/servo \
+  -H "Content-Type: application/json" \
+  -d '{"action":"pulse","direction":"cw","duration":500}'
+
+# Direct PWM microsecond control (500-2400us)
+curl -X POST http://<ESP32_IP>/servo \
+  -H "Content-Type: application/json" \
+  -d '{"us":2000}'
 ```
+
+#### Hardware Wiring
 
 #### Examples
 
@@ -268,13 +287,34 @@ curl -X POST http://<ESP32_IP>/msg \
   -d "Hello from OpenClaw!"
 ```
 
-**Use cases**: notification push, scheduled reminders, server status monitoring, smart home alerts, **servo control** (e.g., robot arm, door lock, fan speed).
+**Servo control via OpenClaw:**
 
 ```bash
-# Control SG90 servo via OpenClaw
+# Full speed forward
 curl -X POST http://<ESP32_IP>/servo \
   -H "Content-Type: application/json" \
-  -d '{"speed":120}'
+  -d '{"speed":180}'
+
+# Rotate 2 seconds then auto-stop
+curl -X POST http://<ESP32_IP>/servo \
+  -H "Content-Type: application/json" \
+  -d '{"action":"rotate","speed":180,"duration":2000}'
+
+# Quick 500ms pulse clockwise then stop
+curl -X POST http://<ESP32_IP>/servo \
+  -H "Content-Type: application/json" \
+  -d '{"action":"pulse","direction":"cw","duration":500}'
+
+# Stop
+curl -X POST http://<ESP32_IP>/servo \
+  -H "Content-Type: application/json" \
+  -d '{"action":"stop"}'
+
+# Check status
+curl http://<ESP32_IP>/servo
+```
+
+**Use cases**: notification push, scheduled reminders, server status monitoring, smart home alerts, servo control (robot arm, door lock, pan-tilt, flag waving).
 
 ---
 
@@ -429,15 +469,39 @@ curl http://<ESP32_IP>/timer
 
 #### 舵机控制
 
+舵机：SG90 360° 连续旋转，接 GPIO18。
+
 ```bash
-# 设置舵机速度 (0-180, 90=停止)
-# 0=全速反转, 180=全速正转
+# 查看状态
+curl http://<ESP32_IP>/servo
+
+# 设置速度 (0=全速反转, 90=停止, 180=全速正转)
 curl -X POST http://<ESP32_IP>/servo \
   -H "Content-Type: application/json" \
   -d '{"speed":120}'
 
 # 停止舵机
 curl -X POST http://<ESP32_IP>/servo \
+  -H "Content-Type: application/json" \
+  -d '{"action":"stop"}'
+
+# 旋转指定时间后自动停止
+curl -X POST http://<ESP32_IP>/servo \
+  -H "Content-Type: application/json" \
+  -d '{"action":"rotate","speed":180,"duration":2000}'
+
+# 短促脉冲（指定方向，然后自动停止）
+curl -X POST http://<ESP32_IP>/servo \
+  -H "Content-Type: application/json" \
+  -d '{"action":"pulse","direction":"cw","duration":500}'
+
+# 直接 PWM 微秒控制 (500-2400us)
+curl -X POST http://<ESP32_IP>/servo \
+  -H "Content-Type: application/json" \
+  -d '{"us":2000}'
+```
+
+#### 硬件接线
   -H "Content-Type: application/json" \
   -d '{"action":"stop"}'
 

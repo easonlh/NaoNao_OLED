@@ -241,15 +241,43 @@ void NaoNaoServer::handleServo() {
 
   if (doc.containsKey("action")) {
     const char* action = doc["action"];
+
     if (strcmp(action, "stop") == 0) {
       servoCtrl.setSpeed(90);
       resp["ok"] = true;
       resp["speed"] = 90;
       resp["message"] = "Servo stopped";
+
     } else if (strcmp(action, "status") == 0) {
       resp["speed"] = servoCtrl.getSpeed();
       resp["attached"] = servoCtrl.isAttached();
       resp["stopped"] = (servoCtrl.getSpeed() == 90);
+
+    } else if (strcmp(action, "rotate") == 0) {
+      // Rotate at given speed for given duration (ms), then auto-stop
+      int speed = doc["speed"] | 0;
+      unsigned long duration = doc["duration"] | 1000;
+      servoCtrl.setSpeed(speed);
+      delay(duration);
+      servoCtrl.setSpeed(90);
+      resp["ok"] = true;
+      resp["speed"] = speed;
+      resp["duration_ms"] = duration;
+      resp["message"] = "Rotated then stopped";
+
+    } else if (strcmp(action, "pulse") == 0) {
+      // Short burst in a direction
+      const char* dir = doc["direction"] | "cw";
+      unsigned long duration = doc["duration"] | 500;
+      int pulseSpeed = (strcmp(dir, "cw") == 0 || strcmp(dir, "forward") == 0) ? 180 : 0;
+      servoCtrl.setSpeed(pulseSpeed);
+      delay(duration);
+      servoCtrl.setSpeed(90);
+      resp["ok"] = true;
+      resp["direction"] = dir;
+      resp["duration_ms"] = duration;
+      resp["message"] = "Pulsed then stopped";
+
     } else {
       server->send(400, "application/json", "{\"error\":\"Unknown action\"}");
       return;
