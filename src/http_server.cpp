@@ -218,9 +218,8 @@ void NaoNaoServer::handleMode() {
 void NaoNaoServer::handleServo() {
   if (server->method() == HTTP_GET) {
     StaticJsonDocument<128> doc;
-    doc["speed"] = servoCtrl.getSpeed();
+    doc["angle"] = servoCtrl.getAngle();
     doc["attached"] = servoCtrl.isAttached();
-    doc["stopped"] = (servoCtrl.getSpeed() == 90);
     char buf[128];
     serializeJson(doc, buf, sizeof(buf));
     server->send(200, "application/json", buf);
@@ -239,41 +238,20 @@ void NaoNaoServer::handleServo() {
 
   StaticJsonDocument<128> resp;
 
-  if (doc.containsKey("action")) {
-    const char* action = doc["action"];
-    if (strcmp(action, "stop") == 0) {
-      servoCtrl.stop();
-      resp["ok"] = true;
-      resp["speed"] = 90;
-      resp["message"] = "Servo stopped";
-    } else if (strcmp(action, "status") == 0) {
-      resp["speed"] = servoCtrl.getSpeed();
-      resp["attached"] = servoCtrl.isAttached();
-      resp["stopped"] = (servoCtrl.getSpeed() == 90);
-    } else if (strcmp(action, "calibrate") == 0) {
-      int us = doc["us"] | 1500;
-      servoCtrl.setSpeedUs(us);
-      resp["ok"] = true;
-      resp["us"] = us;
-      resp["message"] = "PWM set (adjust us until servo moves)";
-    } else {
-      server->send(400, "application/json", "{\"error\":\"Unknown action\"}");
-      return;
-    }
+  if (doc.containsKey("angle")) {
+    // 整数角度 0-180
+    servoCtrl.setAngle(doc["angle"]);
+    resp["ok"] = true;
+    resp["angle"] = doc["angle"];
+    resp["message"] = "Angle set";
   } else if (doc.containsKey("us")) {
-    int us = doc["us"];
-    servoCtrl.setSpeedUs(us);
+    // 直接微秒值 500-2400
+    servoCtrl.setAngleUs(doc["us"]);
     resp["ok"] = true;
-    resp["us"] = us;
+    resp["us"] = doc["us"];
     resp["message"] = "PWM set";
-  } else if (doc.containsKey("speed")) {
-    int speed = doc["speed"];
-    servoCtrl.setSpeed(speed);
-    resp["ok"] = true;
-    resp["speed"] = speed;
-    resp["message"] = "Speed set";
   } else {
-    server->send(400, "application/json", "{\"error\":\"Missing speed or action\"}");
+    server->send(400, "application/json", "{\"error\":\"Missing angle or us\"}");
     return;
   }
 
