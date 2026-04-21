@@ -218,8 +218,9 @@ void NaoNaoServer::handleMode() {
 void NaoNaoServer::handleServo() {
   if (server->method() == HTTP_GET) {
     StaticJsonDocument<128> doc;
-    doc["angle"] = servoCtrl.getAngle();
+    doc["speed"] = servoCtrl.getSpeed();
     doc["attached"] = servoCtrl.isAttached();
+    doc["stopped"] = (servoCtrl.getSpeed() == 90);
     char buf[128];
     serializeJson(doc, buf, sizeof(buf));
     server->send(200, "application/json", buf);
@@ -238,20 +239,35 @@ void NaoNaoServer::handleServo() {
 
   StaticJsonDocument<128> resp;
 
-  if (doc.containsKey("angle")) {
-    // 整数角度 0-180
-    servoCtrl.setAngle(doc["angle"]);
-    resp["ok"] = true;
-    resp["angle"] = doc["angle"];
-    resp["message"] = "Angle set";
+  if (doc.containsKey("action")) {
+    const char* action = doc["action"];
+    if (strcmp(action, "stop") == 0) {
+      servoCtrl.setSpeed(90);
+      resp["ok"] = true;
+      resp["speed"] = 90;
+      resp["message"] = "Servo stopped";
+    } else if (strcmp(action, "status") == 0) {
+      resp["speed"] = servoCtrl.getSpeed();
+      resp["attached"] = servoCtrl.isAttached();
+      resp["stopped"] = (servoCtrl.getSpeed() == 90);
+    } else {
+      server->send(400, "application/json", "{\"error\":\"Unknown action\"}");
+      return;
+    }
   } else if (doc.containsKey("us")) {
-    // 直接微秒值 500-2400
-    servoCtrl.setAngleUs(doc["us"]);
+    int us = doc["us"];
+    servoCtrl.setSpeedUs(us);
     resp["ok"] = true;
-    resp["us"] = doc["us"];
+    resp["us"] = us;
     resp["message"] = "PWM set";
+  } else if (doc.containsKey("speed")) {
+    int speed = doc["speed"];
+    servoCtrl.setSpeed(speed);
+    resp["ok"] = true;
+    resp["speed"] = speed;
+    resp["message"] = "Speed set";
   } else {
-    server->send(400, "application/json", "{\"error\":\"Missing angle or us\"}");
+    server->send(400, "application/json", "{\"error\":\"Missing speed or action\"}");
     return;
   }
 

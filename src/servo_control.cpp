@@ -1,43 +1,32 @@
 #include "servo_control.h"
 
-ServoController::ServoController() : currentAngle(0) {}
+ServoController::ServoController() : currentSpeed(90) {}
 
 void ServoController::begin() {
   servo.setPeriodHertz(50);  // SG90 标准 50Hz
   servo.attach(SERVO_PIN, SERVO_MIN_PULSE, SERVO_MAX_PULSE);
-  servo.write(0);  // 初始 0°
-  currentAngle = 0;
+  servo.write(90);  // 初始停止
   Serial.println("Servo initialized on GPIO18");
 }
 
-void ServoController::setAngle(int angle) {
-  if (angle < 0) angle = 0;
-  if (angle > 180) angle = 180;
-  currentAngle = angle;
-  servo.write(angle);
-  Serial.printf("Servo angle set to: %d deg\n", angle);
+void ServoController::setSpeed(int speed) {
+  if (speed < 0) speed = 0;
+  if (speed > 180) speed = 180;
+  currentSpeed = speed;
+  servo.write(speed);
+  Serial.printf("Servo speed set to: %d\n", speed);
 }
 
-void ServoController::setAngleFloat(float angle) {
-  // 连续平滑控制，支持小数角度
-  if (angle < 0) angle = 0;
-  if (angle > 180) angle = 180;
-  currentAngle = (int)angle;
-  servo.write(angle);
-  Serial.printf("Servo angle set to: %.1f deg\n", angle);
+void ServoController::setSpeedUs(int us) {
+  if (us < 500) us = 500;
+  if (us > 2400) us = 2400;
+  servo.writeMicroseconds(us);
+  currentSpeed = map(us, 500, 2400, 0, 180);
+  Serial.printf("Servo PWM set to: %d us\n", us);
 }
 
-void ServoController::setAngleUs(int microseconds) {
-  // 直接写入微秒值，按卖家公式：pulsewidth = angle * 12 + 500
-  if (microseconds < 500) microseconds = 500;
-  if (microseconds > 2400) microseconds = 2400;
-  servo.writeMicroseconds(microseconds);
-  currentAngle = map(microseconds, 500, 2400, 0, 180);
-  Serial.printf("Servo PWM set to: %d us (~%d deg)\n", microseconds, currentAngle);
-}
-
-int ServoController::getAngle() {
-  return currentAngle;
+int ServoController::getSpeed() {
+  return currentSpeed;
 }
 
 bool ServoController::isAttached() {
