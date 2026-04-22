@@ -8,7 +8,7 @@
 
 ### Project Overview
 
-A feature-rich PlatformIO ESP32 project that drives a 0.96" SSD1306 128x64 OLED display via hardware I2C. Features **9 display modes** including real-time weather, crypto prices, GitHub stars, countdown timer, MQTT smart home integration, OTA wireless updates, and **SG90 servo control** via HTTP API.
+A feature-rich PlatformIO ESP32 project that drives a 0.96" SSD1306 128x64 OLED display via hardware I2C. Features **10 display modes** including real-time weather, crypto prices, GitHub stars, countdown timer, MQTT smart home integration, light sensor monitoring, OTA wireless updates, and **SG90 servo control** via HTTP API.
 
 ### Quick Start
 
@@ -31,7 +31,7 @@ pio device monitor -b 115200
 
 ### Features
 
-#### 9 Display Modes
+#### 10 Display Modes
 - **Clock**: NTP-synced real-time clock (HH:MM:SS) with blinking colon
 - **Date**: Full date with Chinese weekday names
 - **Notification**: Scrolling text messages with queue navigation
@@ -41,6 +41,7 @@ pio device monitor -b 115200
 - **Crypto Price**: Bitcoin price + 24h change from CoinGecko (no API key needed)
 - **GitHub Stars**: Repo star count and language from GitHub API
 - **MQTT Monitor**: Smart home event messages from MQTT broker
+- **Light Sensor**: Real-time ADC light intensity reading with progress bar
 
 #### Smart Screen Cycling
 - Auto-cycles through enabled modes every 5 seconds
@@ -102,6 +103,16 @@ src/
   - Red wire → VIN
   - Brown wire → GND
   - Yellow wire → GPIO18 (D18)
+- **Light Sensor (optional)**: 4-pin photoresistor module (e.g., KY-018)
+  - VCC → 3.3V
+  - GND → GND
+  - A0 → GPIO34 (ADC input)
+  - D0 → GPIO4 (Digital threshold)
+
+#### Auto Features (No API Needed)
+- **OLED auto-brightness**: Screen adjusts based on ambient light
+- **Light-triggered servo**: Automatically moves on dark↔bright transitions (close shutter at night, open at dawn)
+- **Auto screensaver wake**: Light changes wake the screen from sleep
 
 ### Configuration
 
@@ -163,6 +174,8 @@ WIFI_PASSWORD=YourWiFiPassword
 | `/reboot` | POST | Reboot device |
 | `/servo` | GET | Get servo status |
 | `/servo` | POST | Control servo speed |
+| `/light` | GET | Get light sensor reading |
+| `/light` | POST | Trigger servo on light change |
 
 #### Timer Control
 
@@ -214,6 +227,26 @@ curl -X POST http://<ESP32_IP>/servo \
 curl -X POST http://<ESP32_IP>/servo \
   -H "Content-Type: application/json" \
   -d '{"us":2000}'
+```
+
+#### Light Sensor
+
+Read ambient light level and trigger actions.
+
+```bash
+# Get current reading
+curl http://<ESP32_IP>/light
+# Response: {"raw":1500,"state":"normal","is_dark":false,"is_bright":false,"brightness_factor":0.4}
+
+# Trigger servo when dark (close shutter)
+curl -X POST http://<ESP32_IP>/light \
+  -H "Content-Type: application/json" \
+  -d '{"action":"trigger_servo_dark","speed":0,"duration":2000}'
+
+# Trigger servo when bright (open shutter)
+curl -X POST http://<ESP32_IP>/light \
+  -H "Content-Type: application/json" \
+  -d '{"action":"trigger_servo_bright","speed":180,"duration":2000}'
 ```
 
 #### Hardware Wiring
@@ -345,7 +378,7 @@ pio device monitor -b 115200
 
 ### 功能特性
 
-#### 9 种显示模式
+#### 10 种显示模式
 - **时钟**: NTP 同步实时时钟 (HH:MM:SS)，冒号闪烁
 - **日期**: 完整日期 + 中文星期
 - **通知**: 滚动文本消息，队列导航
@@ -355,6 +388,7 @@ pio device monitor -b 115200
 - **加密货币**: CoinGecko BTC 价格 + 24h 涨跌（无需 API Key）
 - **GitHub Star**: 仓库 Star 数 + 编程语言
 - **MQTT 监控**: MQTT Broker 智能家居事件
+- **光敏传感器**: 实时光照强度 ADC 值 + 进度条
 
 #### 智能屏幕切换
 - 每 5 秒自动切换已启用的模式
@@ -399,6 +433,16 @@ pio device monitor -b 115200
   - 红线 → VIN
   - 棕线 → GND
   - 黄线 → GPIO18 (D18)
+- **光敏传感器（可选）**: 4 针光敏电阻模块（如 KY-018）
+  - VCC → 3.3V
+  - GND → GND
+  - A0 → GPIO34（模拟输入）
+  - D0 → GPIO4（数字阈值）
+
+#### 自动功能（无需 API）
+- **OLED 自动亮度**: 根据环境光自动调节屏幕亮度
+- **光敏舵机联动**: 天黑自动触发动作（关窗/合上遮光板），天亮反向
+- **光敏唤醒屏保**: 光线变化唤醒休眠屏幕
 
 ### 配置说明
 
@@ -449,6 +493,8 @@ WIFI_PASSWORD=你的WiFi密码
 | `/reboot` | POST | 重启设备 |
 | `/servo` | GET | 获取舵机状态 |
 | `/servo` | POST | 控制舵机速度 |
+| `/light` | GET | 获取光敏传感器读数 |
+| `/light` | POST | 光变触发舵机动作 |
 
 #### 倒计时控制
 
@@ -501,12 +547,24 @@ curl -X POST http://<ESP32_IP>/servo \
   -d '{"us":2000}'
 ```
 
-#### 硬件接线
-  -H "Content-Type: application/json" \
-  -d '{"action":"stop"}'
+#### 光敏传感器
 
-# 查看状态
-curl http://<ESP32_IP>/servo
+读取环境光照强度。
+
+```bash
+# 获取当前读数
+curl http://<ESP32_IP>/light
+# 响应: {"raw":1500,"state":"normal","is_dark":false,"brightness_factor":0.4}
+
+# 天黑触发舵机（如：关闭遮光板）
+curl -X POST http://<ESP32_IP>/light \
+  -H "Content-Type: application/json" \
+  -d '{"action":"trigger_servo_dark","speed":0,"duration":2000}'
+
+# 天亮触发舵机（如：打开遮光板）
+curl -X POST http://<ESP32_IP>/light \
+  -H "Content-Type: application/json" \
+  -d '{"action":"trigger_servo_bright","speed":180,"duration":2000}'
 ```
 
 #### 示例
