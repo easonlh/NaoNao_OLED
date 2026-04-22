@@ -5,15 +5,20 @@ ServoController::ServoController() : currentSpeed(90) {}
 void ServoController::begin() {
   servo.setPeriodHertz(50);  // SG90 标准 50Hz
   servo.attach(SERVO_PIN, SERVO_MIN_PULSE, SERVO_MAX_PULSE);
-  servo.write(90);  // 初始停止
-  Serial.println("Servo initialized on GPIO18");
+  servo.writeMicroseconds(1500);  // 发送精确 1500us 停止信号
+  currentSpeed = 90;
+  Serial.println("Servo initialized on GPIO18 (stopped)");
 }
 
 void ServoController::setSpeed(int speed) {
   if (speed < 0) speed = 0;
   if (speed > 180) speed = 180;
   currentSpeed = speed;
-  servo.write(speed);
+  if (speed == 90) {
+    servo.writeMicroseconds(1500);  // 停止位用精确 1500us
+  } else {
+    servo.write(speed);
+  }
   Serial.printf("Servo speed set to: %d\n", speed);
 }
 
