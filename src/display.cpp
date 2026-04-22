@@ -7,6 +7,7 @@
 #include "github_client.h"
 #include "countdown_timer.h"
 #include "mqtt_client_wrapper.h"
+#include "light_sensor.h"
 #include <time.h>
 #include <WiFi.h>
 
@@ -461,6 +462,41 @@ void drawMqttMonitor(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2) {
   drawStatusBar(u8g2);
 }
 
+void drawLightSensor(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2) {
+  int raw = lightSensor.getRawValue();
+  LightState state = lightSensor.getState();
+
+  // Title
+  u8g2.setFont(u8g2_font_wqy12_t_gb2312);
+  u8g2.setCursor(30, 14);
+  u8g2.print("光照传感器");
+
+  // ADC value large
+  char adcStr[16];
+  snprintf(adcStr, sizeof(adcStr), "%d", raw);
+  u8g2.setFont(u8g2_font_logisoso32_tf);
+  u8g2.setCursor(5, 45);
+  u8g2.print(adcStr);
+
+  // State label
+  u8g2.setFont(u8g2_font_wqy12_t_gb2312);
+  u8g2.setCursor(100, 45);
+  switch (state) {
+    case LIGHT_DARK:    u8g2.print("暗"); break;
+    case LIGHT_DIM:     u8g2.print("弱"); break;
+    case LIGHT_NORMAL:  u8g2.print("常"); break;
+    case LIGHT_BRIGHT:  u8g2.print("亮"); break;
+    default:            u8g2.print("?"); break;
+  }
+
+  // Progress bar (0-4095 mapped to 0-120)
+  int barW = map(raw, 0, 4095, 0, 118);
+  u8g2.drawFrame(5, 56, 118, 6);
+  u8g2.drawBox(6, 57, max(barW - 1, 0), 4);
+
+  drawStatusBar(u8g2);
+}
+
 void drawScreenSaver(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2) {
   struct tm timeinfo;
   if (getLocalTime(&timeinfo)) {
@@ -510,6 +546,11 @@ ScreenMode getNextEnabledMode(ScreenMode current) {
       continue;
     }
 
+    // Skip light sensor mode if sensor not initialized
+    if (next == MODE_LIGHT_SENSOR && lightSensor.getRawValue() == 0) {
+      continue;
+    }
+
     if (MODE_ENABLED[next]) {
       return (ScreenMode)next;
     }
@@ -532,20 +573,31 @@ void checkScreenSaver() {
 }
 
 void adjustBrightness(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2) {
-  struct tm timeinfo;
-  if (getLocalTime(&timeinfo)) {
-    int hour = timeinfo.tm_hour;
-    int targetBrightness;
+  int targetBrightness;
 
-    if (hour >= NIGHT_START_HOUR || hour < DAY_START_HOUR) {
-      targetBrightness = BRIGHTNESS_NIGHT;
+  // Use light sensor if available (raw > 0 means it's been read)
+  if (lightSensor.getRawValue() > 0) {
+    // Map sensor reading: dark (<300) → BRIGHTNESS_NIGHT, bright (>3000) → BRIGHTNESS_DAY
+    targetBrightness = map(lightSensor.getRawValue(), 300, 3000, BRIGHTNESS_NIGHT, BRIGHTNESS_DAY);
+    if (targetBrightness < BRIGHTNESS_NIGHT) targetBrightness = BRIGHTNESS_NIGHT;
+    if (targetBrightness > BRIGHTNESS_DAY) targetBrightness = BRIGHTNESS_DAY;
+  } else {
+    // Fallback: time-based brightness
+    struct tm timeinfo;
+    if (getLocalTime(&timeinfo)) {
+      int hour = timeinfo.tm_hour;
+      if (hour >= NIGHT_START_HOUR || hour < DAY_START_HOUR) {
+        targetBrightness = BRIGHTNESS_NIGHT;
+      } else {
+        targetBrightness = BRIGHTNESS_DAY;
+      }
     } else {
       targetBrightness = BRIGHTNESS_DAY;
     }
+  }
 
-    if (targetBrightness != currentBrightness) {
-      currentBrightness = targetBrightness;
-      u8g2.setContrast(currentBrightness);
-    }
+  if (targetBrightness != currentBrightness) {
+    currentBrightness = targetBrightness;
+    u8g2.setContrast(currentBrightness);
   }
 }

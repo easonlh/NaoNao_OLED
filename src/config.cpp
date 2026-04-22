@@ -53,7 +53,7 @@ const unsigned long GITHUB_FETCH_INTERVAL_MS = 600000;
 const unsigned long TIMER_DEFAULT_DURATION_SEC = 300;
 
 // ==================== 显示模式轮播配置 ====================
-const int NUM_DISPLAY_MODES = 9;
+const int NUM_DISPLAY_MODES = 10;
 const bool MODE_ENABLED[] = {
   true,  // MODE_CLOCK
   true,  // MODE_DATE
@@ -64,4 +64,5 @@ const bool MODE_ENABLED[] = {
   true,  // MODE_PRICE
   true,  // MODE_GITHUB
   true,  // MODE_MQTT_MONITOR
+  true,  // MODE_LIGHT_SENSOR
 };

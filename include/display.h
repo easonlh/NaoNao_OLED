@@ -14,7 +14,8 @@ enum ScreenMode {
   MODE_COUNTDOWN,    // 5 - 倒计时模式
   MODE_PRICE,        // 6 - 加密货币价格模式
   MODE_GITHUB,       // 7 - GitHub Star 模式
-  MODE_MQTT_MONITOR  // 8 - MQTT 消息模式
+  MODE_MQTT_MONITOR, // 8 - MQTT 消息模式
+  MODE_LIGHT_SENSOR  // 9 - 光敏传感器模式
 };
 
 extern ScreenMode currentMode;
@@ -35,6 +36,7 @@ void drawCountdownTimer(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
 void drawPriceDisplay(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
 void drawGitHubStars(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
 void drawMqttMonitor(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
+void drawLightSensor(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
 void drawScreenSaver(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
 
 // 状态栏

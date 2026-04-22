@@ -19,6 +19,7 @@ private:
   void handleMode();
   void handleReboot();
   void handleServo();
+  void handleLight();
   String generateWebPage();
 
 public:

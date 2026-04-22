@@ -7,6 +7,7 @@
 #include "countdown_timer.h"
 #include "display.h"
 #include "servo_control.h"
+#include "light_sensor.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
@@ -28,6 +29,8 @@ void NaoNaoServer::begin() {
   server->on("/reboot", HTTP_POST, [this]() { handleReboot(); });
   server->on("/servo", HTTP_GET, [this]() { handleServo(); });
   server->on("/servo", HTTP_POST, [this]() { handleServo(); });
+  server->on("/light", HTTP_GET, [this]() { handleLight(); });
+  server->on("/light", HTTP_POST, [this]() { handleLight(); });
   server->begin();
 }
 
@@ -308,6 +311,70 @@ void NaoNaoServer::handleReboot() {
   server->send(200, "application/json", "{\"ok\":true,\"message\":\"Rebooting...\"}");
   delay(500);
   ESP.restart();
+}
+
+void NaoNaoServer::handleLight() {
+  if (server->method() == HTTP_GET) {
+    StaticJsonDocument<256> doc;
+    doc["raw"] = lightSensor.getRawValue();
+    doc["state"] = lightSensor.stateName();
+    doc["is_dark"] = lightSensor.isDark();
+    doc["is_bright"] = lightSensor.isBright();
+    doc["brightness_factor"] = lightSensor.getBrightnessFactor();
+    doc["threshold_dark"] = LIGHT_DARK_THRESHOLD;
+    doc["threshold_bright"] = LIGHT_BRIGHT_THRESHOLD;
+
+    char buf[256];
+    serializeJson(doc, buf, sizeof(buf));
+    server->send(200, "application/json", buf);
+    return;
+  }
+
+  // POST: configure thresholds or trigger servo
+  String body = server->arg("plain");
+  StaticJsonDocument<128> doc;
+  DeserializationError error = deserializeJson(doc, body);
+
+  if (error) {
+    server->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+    return;
+  }
+
+  StaticJsonDocument<128> resp;
+
+  if (doc.containsKey("action")) {
+    const char* action = doc["action"];
+
+    if (strcmp(action, "trigger_servo_dark") == 0) {
+      // Trigger servo when dark (e.g., close shutter)
+      int speed = doc["speed"] | 0;
+      unsigned long duration = doc["duration"] | 2000;
+      servoCtrl.setSpeed(speed);
+      delay(duration);
+      servoCtrl.setSpeed(90);
+      resp["ok"] = true;
+      resp["message"] = "Servo triggered on dark";
+    } else if (strcmp(action, "trigger_servo_bright") == 0) {
+      // Trigger servo when bright (e.g., open shutter)
+      int speed = doc["speed"] | 180;
+      unsigned long duration = doc["duration"] | 2000;
+      servoCtrl.setSpeed(speed);
+      delay(duration);
+      servoCtrl.setSpeed(90);
+      resp["ok"] = true;
+      resp["message"] = "Servo triggered on bright";
+    } else {
+      server->send(400, "application/json", "{\"error\":\"Unknown action\"}");
+      return;
+    }
+  } else {
+    server->send(400, "application/json", "{\"error\":\"Missing action\"}");
+    return;
+  }
+
+  char buf[128];
+  serializeJson(resp, buf, sizeof(buf));
+  server->send(200, "application/json", buf);
 }
 
 String NaoNaoServer::generateWebPage() {

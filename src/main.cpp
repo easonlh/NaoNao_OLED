@@ -16,6 +16,7 @@
 #include "countdown_timer.h"
 #include "mqtt_client_wrapper.h"
 #include "servo_control.h"
+#include "light_sensor.h"
 
 // ==================== 硬件初始化 ====================
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
@@ -226,6 +227,9 @@ void setup() {
   servoCtrl.begin();
   Serial.println("Servo initialized");
 
+  // 初始化光敏传感器
+  lightSensor.begin();
+
   Serial.println("Setup complete!");
 }
 
@@ -258,6 +262,30 @@ void loop() {
 
   // 更新倒计时
   countdownTimer.update();
+
+  // 更新光敏传感器
+  lightSensor.update();
+
+  // 光敏联动舵机（天黑自动动作）
+  if (lightSensor.justGotDark()) {
+    // 天黑触发：舵机顺时针转2秒后停止
+    servoCtrl.setSpeed(0);  // 顺时针
+    delay(2000);
+    servoCtrl.setSpeed(90);  // 停止
+    Serial.println("Light→dark: Servo triggered!");
+  } else if (lightSensor.justGotBright()) {
+    // 天亮触发：舵机逆时针转2秒后停止
+    servoCtrl.setSpeed(180);  // 逆时针
+    delay(2000);
+    servoCtrl.setSpeed(90);  // 停止
+    Serial.println("Light→bright: Servo triggered!");
+  }
+
+  // 光线变暗时触发活动，唤醒屏幕
+  if (lightSensor.justGotDark() || lightSensor.justGotBright()) {
+    lastActivityTime = millis();
+    screenSaverActive = false;
+  }
 
   // 更新动画
   bird.update();
@@ -319,6 +347,10 @@ void loop() {
 
       case MODE_MQTT_MONITOR:
         drawMqttMonitor(u8g2);
+        break;
+
+      case MODE_LIGHT_SENSOR:
+        drawLightSensor(u8g2);
         break;
     }
   }
