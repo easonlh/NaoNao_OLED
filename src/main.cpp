@@ -36,6 +36,11 @@ ScreenSaverAnimation screenSaver;
 unsigned long lastNtpSyncTime = 0;
 const unsigned long NTP_SYNC_INTERVAL = 3600000; // 1 小时
 
+// 光敏舵机联动的非阻塞状态
+static bool servoTriggerActive = false;
+static unsigned long servoTriggerStart = 0;
+static unsigned long servoTriggerDuration = 0;
+
 // ==================== 辅助函数 ====================
 int getMsgCount() {
   return msgQueue.getCount();
@@ -266,25 +271,30 @@ void loop() {
   // 更新光敏传感器
   lightSensor.update();
 
-  // 光敏联动舵机（天黑自动动作）
+  // 光敏联动舵机（非阻塞）
   if (lightSensor.justGotDark()) {
-    // 天黑触发：舵机顺时针转2秒后停止
     servoCtrl.setSpeed(0);  // 顺时针
-    delay(2000);
-    servoCtrl.setSpeed(90);  // 停止
+    servoTriggerActive = true;
+    servoTriggerStart = millis();
+    servoTriggerDuration = 2000;
+    lastActivityTime = millis();
+    screenSaverActive = false;
     Serial.println("Light→dark: Servo triggered!");
   } else if (lightSensor.justGotBright()) {
-    // 天亮触发：舵机逆时针转2秒后停止
     servoCtrl.setSpeed(180);  // 逆时针
-    delay(2000);
-    servoCtrl.setSpeed(90);  // 停止
+    servoTriggerActive = true;
+    servoTriggerStart = millis();
+    servoTriggerDuration = 2000;
+    lastActivityTime = millis();
+    screenSaverActive = false;
     Serial.println("Light→bright: Servo triggered!");
   }
 
-  // 光线变暗时触发活动，唤醒屏幕
-  if (lightSensor.justGotDark() || lightSensor.justGotBright()) {
-    lastActivityTime = millis();
-    screenSaverActive = false;
+  // 非阻塞：到时间自动停止舵机
+  if (servoTriggerActive && millis() - servoTriggerStart >= servoTriggerDuration) {
+    servoCtrl.setSpeed(90);
+    servoTriggerActive = false;
+    Serial.println("Servo auto-stopped");
   }
 
   // 更新动画

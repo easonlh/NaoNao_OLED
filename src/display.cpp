@@ -567,7 +567,12 @@ void autoCycleMode() {
 }
 
 void checkScreenSaver() {
+  // 超时触发屏保
   if (millis() - lastActivityTime > SCREENSAVER_TIMEOUT) {
+    screenSaverActive = true;
+  }
+  // 光敏传感器检测到很暗时，更快进入屏保（节能）
+  if (lightSensor.isDark() && millis() - lastActivityTime > SCREENSAVER_TIMEOUT / 3) {
     screenSaverActive = true;
   }
 }
