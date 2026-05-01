@@ -48,6 +48,18 @@ extern const unsigned long GITHUB_FETCH_INTERVAL_MS;
 // 倒计时默认时长（秒）
 extern const unsigned long TIMER_DEFAULT_DURATION_SEC;
 
+// DHT11 温湿度传感器配置
+extern const int DHT_PIN;
+extern const float DHT_TEMP_ALERT_HIGH;
+extern const float DHT_TEMP_ALERT_LOW;
+
+// 番茄钟配置
+extern const int POMO_WORK_MIN;
+extern const int POMO_BREAK_MIN;
+
+// 室内外温差阈值
+extern const float INDOOR_OUTDOOR_TEMP_DIFF;
+
 // 显示模式轮播配置
 extern const int NUM_DISPLAY_MODES;
 extern const bool MODE_ENABLED[];

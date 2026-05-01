@@ -8,7 +8,7 @@
 
 ### Project Overview
 
-A feature-rich PlatformIO ESP32 project that drives a 0.96" SSD1306 128x64 OLED display via hardware I2C. Features **10 display modes** including real-time weather, crypto prices, GitHub stars, countdown timer, MQTT smart home integration, light sensor monitoring, OTA wireless updates, and **SG90 servo control** via HTTP API.
+A feature-rich PlatformIO ESP32 project that drives a 0.96" SSD1306 128x64 OLED display via hardware I2C. Features **14 display modes** including real-time weather, crypto prices, GitHub stars, countdown timer, MQTT smart home integration, light sensor monitoring, indoor temperature & humidity, Pomodoro timer, sleep tracking, indoor/outdoor comparison, OTA wireless updates, and **SG90 servo control** via HTTP API.
 
 ### Quick Start
 
@@ -31,7 +31,7 @@ pio device monitor -b 115200
 
 ### Features
 
-#### 10 Display Modes
+#### 14 Display Modes
 - **Clock**: NTP-synced real-time clock (HH:MM:SS) with blinking colon
 - **Date**: Full date with Chinese weekday names
 - **Notification**: Scrolling text messages with queue navigation
@@ -42,6 +42,10 @@ pio device monitor -b 115200
 - **GitHub Stars**: Repo star count and language from GitHub API
 - **MQTT Monitor**: Smart home event messages from MQTT broker
 - **Light Sensor**: Real-time ADC light intensity reading with progress bar
+- **Temp & Humidity**: Indoor temperature and humidity from DHT11 sensor with comfort level
+- **Pomodoro Timer**: Work/break cycles with servo physical alert
+- **Indoor vs Outdoor**: Compare DHT11 indoor temp with weather API outdoor temp
+- **Sleep Tracker**: Automatic sleep duration tracking via light sensor
 
 #### Smart Screen Cycling
 - Auto-cycles through enabled modes every 5 seconds
@@ -91,7 +95,12 @@ src/
 ├── mqtt_client_wrapper.cpp   # MQTT broker integration
 ├── message_queue.cpp         # Message queue management
 ├── animations.cpp            # Animation implementations
-└── servo_control.cpp         # SG90 servo PWM control
+├── servo_control.cpp         # SG90 servo PWM control
+├── light_sensor.cpp          # Photoresistor ADC reading
+├── dht_sensor.cpp            # DHT11 temperature & humidity
+├── pomodoro.cpp              # Pomodoro timer state machine
+├── sleep_tracker.cpp         # Sleep duration tracking
+└── smart_night.cpp           # Smart night light automation
 ```
 
 ### Hardware Requirements
@@ -108,11 +117,18 @@ src/
   - GND → GND
   - A0 → GPIO34 (ADC input)
   - D0 → GPIO4 (Digital threshold)
+- **Temp & Humidity Sensor (optional)**: DHT11 3-pin module
+  - VCC → 3.3V
+  - DATA → GPIO5 (D5)
+  - GND → GND
 
 #### Auto Features (No API Needed)
+- **Smart Night Mode**: Dark→servo close shutter + dim screen; Bright→servo open shutter + restore brightness
 - **OLED auto-brightness**: Screen adjusts based on ambient light
-- **Light-triggered servo**: Automatically moves on dark↔bright transitions (close shutter at night, open at dawn)
+- **Light-triggered servo**: Automatically moves on dark↔bright transitions
 - **Auto screensaver wake**: Light changes wake the screen from sleep
+- **Sleep tracking**: Automatically records sleep duration via light sensor
+- **Pomodoro alerts**: Servo physically buzzes when work/break phase ends
 
 ### Configuration
 
@@ -154,6 +170,8 @@ WIFI_PASSWORD=YourWiFiPassword
 | `bblanchon/ArduinoJson` | ^7 | JSON parsing for APIs |
 | `knolleary/PubSubClient` | ^2.8 | MQTT client |
 | `madhephaestus/ESP32Servo` | ^3.2.0 | SG90 servo PWM control |
+| `adafruit/DHT sensor library` | ^1.4.6 | DHT11/DHT22 temp & humidity |
+| `adafruit/Adafruit Unified Sensor` | ^1.1.14 | Sensor abstraction (DHT dep) |
 | `WiFi.h` / `WebServer.h` / `time.h` | Built-in | ESP32 Arduino framework |
 | `HTTPClient` / `ArduinoOTA` | Built-in | ESP32 Arduino framework |
 
@@ -176,6 +194,12 @@ WIFI_PASSWORD=YourWiFiPassword
 | `/servo` | POST | Control servo speed |
 | `/light` | GET | Get light sensor reading |
 | `/light` | POST | Trigger servo on light change |
+| `/dht` | GET | Get indoor temperature & humidity |
+| `/pomodoro` | GET | Get Pomodoro timer state |
+| `/pomodoro` | POST | Control Pomodoro (start/pause/resume/reset/skip) |
+| `/sleep` | GET | Get sleep tracking data |
+| `/night` | GET | Get smart night mode status |
+| `/night` | POST | Enable/disable smart night mode |
 
 #### Timer Control
 
@@ -250,6 +274,53 @@ curl -X POST http://<ESP32_IP>/light \
 ```
 
 #### Hardware Wiring
+
+#### Temperature & Humidity Sensor
+
+Read indoor temperature and humidity from DHT11.
+
+```bash
+# Get current reading
+curl http://<ESP32_IP>/dht
+# Response: {"valid":true,"temperature":25.3,"humidity":65,"heat_index":26.1,"comfort":"舒适"}
+```
+
+#### Pomodoro Timer
+
+```bash
+# Start 25-minute work session
+curl -X POST http://<ESP32_IP>/pomodoro \
+  -H "Content-Type: application/json" \
+  -d '{"action":"start","minutes":25}'
+
+# Check status
+curl http://<ESP32_IP>/pomodoro
+
+# Pause / Resume / Reset
+curl -X POST http://<ESP32_IP>/pomodoro -d '{"action":"pause"}'
+curl -X POST http://<ESP32_IP>/pomodoro -d '{"action":"resume"}'
+curl -X POST http://<ESP32_IP>/pomodoro -d '{"action":"reset"}'
+```
+
+#### Sleep Tracker
+
+```bash
+# Get sleep data
+curl http://<ESP32_IP>/sleep
+# Response: {"currently_sleeping":false,"last_sleep_minutes":480,"average_sleep_minutes":420}
+```
+
+#### Smart Night Mode
+
+```bash
+# Get status
+curl http://<ESP32_IP>/night
+
+# Disable auto night mode
+curl -X POST http://<ESP32_IP>/night \
+  -H "Content-Type: application/json" \
+  -d '{"enabled":false}'
+```
 
 #### Examples
 
@@ -355,7 +426,7 @@ curl http://<ESP32_IP>/servo
 
 ### 项目简介
 
-功能丰富的 PlatformIO ESP32 项目，通过硬件 I2C 驱动 0.96 寸 SSD1306 128x64 OLED 显示屏。支持 **9 种显示模式**，包括实时天气、加密货币价格、GitHub Star、倒计时、MQTT 智能家居、OTA 无线升级，以及 **SG90 舵机 HTTP API 控制**。
+功能丰富的 PlatformIO ESP32 项目，通过硬件 I2C 驱动 0.96 寸 SSD1306 128x64 OLED 显示屏。支持 **14 种显示模式**，包括实时天气、加密货币价格、GitHub Star、倒计时、MQTT 智能家居、光敏传感器、室内温湿度、番茄钟、室内外对比、睡眠追踪、智能夜灯、OTA 无线升级，以及 **SG90 舵机 HTTP API 控制**。
 
 ### 快速开始
 
@@ -378,7 +449,7 @@ pio device monitor -b 115200
 
 ### 功能特性
 
-#### 10 种显示模式
+#### 14 种显示模式
 - **时钟**: NTP 同步实时时钟 (HH:MM:SS)，冒号闪烁
 - **日期**: 完整日期 + 中文星期
 - **通知**: 滚动文本消息，队列导航
@@ -389,6 +460,10 @@ pio device monitor -b 115200
 - **GitHub Star**: 仓库 Star 数 + 编程语言
 - **MQTT 监控**: MQTT Broker 智能家居事件
 - **光敏传感器**: 实时光照强度 ADC 值 + 进度条
+- **室内温湿度**: DHT11 实测温度 + 湿度 + 舒适度标签
+- **番茄钟**: 25 分钟专注 + 5 分钟休息循环，舵机物理提醒
+- **室内外对比**: DHT11 室内温度 vs 天气 API 室外温度
+- **睡眠追踪**: 光敏传感器自动记录睡眠时长（最近 7 天）
 
 #### 智能屏幕切换
 - 每 5 秒自动切换已启用的模式
@@ -438,11 +513,18 @@ pio device monitor -b 115200
   - GND → GND
   - A0 → GPIO34（模拟输入）
   - D0 → GPIO4（数字阈值）
+- **温湿度传感器（可选）**: DHT11 3 针模块
+  - VCC → 3.3V
+  - DATA → GPIO5 (D5)
+  - GND → GND
 
 #### 自动功能（无需 API）
+- **智能夜灯**: 天黑自动关窗+降亮度，天亮自动开窗+恢复亮度
 - **OLED 自动亮度**: 根据环境光自动调节屏幕亮度
 - **光敏舵机联动**: 天黑自动触发动作（关窗/合上遮光板），天亮反向
 - **光敏唤醒屏保**: 光线变化唤醒休眠屏幕
+- **睡眠追踪**: 光敏传感器自动记录每日睡眠时长
+- **番茄钟提醒**: 阶段切换时舵机自动旋转提醒
 
 ### 配置说明
 
@@ -495,6 +577,12 @@ WIFI_PASSWORD=你的WiFi密码
 | `/servo` | POST | 控制舵机速度 |
 | `/light` | GET | 获取光敏传感器读数 |
 | `/light` | POST | 光变触发舵机动作 |
+| `/dht` | GET | 获取室内温湿度数据 |
+| `/pomodoro` | GET | 获取番茄钟状态 |
+| `/pomodoro` | POST | 控制番茄钟 (start/pause/resume/reset/skip) |
+| `/sleep` | GET | 获取睡眠追踪数据 |
+| `/night` | GET | 获取智能夜灯状态 |
+| `/night` | POST | 启用/禁用智能夜灯 |
 
 #### 倒计时控制
 
@@ -565,6 +653,53 @@ curl -X POST http://<ESP32_IP>/light \
 curl -X POST http://<ESP32_IP>/light \
   -H "Content-Type: application/json" \
   -d '{"action":"trigger_servo_bright","speed":180,"duration":2000}'
+```
+
+#### 温湿度传感器
+
+读取室内温度和湿度。
+
+```bash
+# 获取当前读数
+curl http://<ESP32_IP>/dht
+# 响应: {"valid":true,"temperature":25.3,"humidity":65,"heat_index":26.1,"comfort":"舒适"}
+```
+
+#### 番茄钟
+
+```bash
+# 开始 25 分钟专注
+curl -X POST http://<ESP32_IP>/pomodoro \
+  -H "Content-Type: application/json" \
+  -d '{"action":"start","minutes":25}'
+
+# 查看状态
+curl http://<ESP32_IP>/pomodoro
+
+# 暂停 / 恢复 / 重置
+curl -X POST http://<ESP32_IP>/pomodoro -d '{"action":"pause"}'
+curl -X POST http://<ESP32_IP>/pomodoro -d '{"action":"resume"}'
+curl -X POST http://<ESP32_IP>/pomodoro -d '{"action":"reset"}'
+```
+
+#### 睡眠追踪
+
+```bash
+# 获取睡眠数据
+curl http://<ESP32_IP>/sleep
+# 响应: {"currently_sleeping":false,"last_sleep_minutes":480,"average_sleep_minutes":420}
+```
+
+#### 智能夜灯
+
+```bash
+# 查看状态
+curl http://<ESP32_IP>/night
+
+# 禁用自动夜灯
+curl -X POST http://<ESP32_IP>/night \
+  -H "Content-Type: application/json" \
+  -d '{"enabled":false}'
 ```
 
 #### 示例

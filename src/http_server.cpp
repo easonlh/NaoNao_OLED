@@ -8,6 +8,10 @@
 #include "display.h"
 #include "servo_control.h"
 #include "light_sensor.h"
+#include "dht_sensor.h"
+#include "pomodoro.h"
+#include "sleep_tracker.h"
+#include "smart_night.h"
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
@@ -31,6 +35,12 @@ void NaoNaoServer::begin() {
   server->on("/servo", HTTP_POST, [this]() { handleServo(); });
   server->on("/light", HTTP_GET, [this]() { handleLight(); });
   server->on("/light", HTTP_POST, [this]() { handleLight(); });
+  server->on("/dht", HTTP_GET, [this]() { handleDht(); });
+  server->on("/pomodoro", HTTP_GET, [this]() { handlePomodoro(); });
+  server->on("/pomodoro", HTTP_POST, [this]() { handlePomodoro(); });
+  server->on("/sleep", HTTP_GET, [this]() { handleSleep(); });
+  server->on("/night", HTTP_GET, [this]() { handleNight(); });
+  server->on("/night", HTTP_POST, [this]() { handleNight(); });
   server->begin();
 }
 
@@ -300,6 +310,138 @@ void NaoNaoServer::handleServo() {
   } else {
     server->send(400, "application/json", "{\"error\":\"Missing speed or action\"}");
     return;
+  }
+
+  char buf[128];
+  serializeJson(resp, buf, sizeof(buf));
+  server->send(200, "application/json", buf);
+}
+
+void NaoNaoServer::handleDht() {
+  DhtData& d = dhtSensor.getData();
+  StaticJsonDocument<256> doc;
+  doc["valid"] = d.valid;
+  doc["temperature"] = d.temperature;
+  doc["humidity"] = d.humidity;
+  doc["heat_index"] = d.heatIndex;
+  doc["comfort"] = dhtSensor.comfortName();
+  doc["last_read"] = d.lastRead;
+
+  char buf[256];
+  serializeJson(doc, buf, sizeof(buf));
+  server->send(200, "application/json", buf);
+}
+
+void NaoNaoServer::handlePomodoro() {
+  if (server->method() == HTTP_GET) {
+    StaticJsonDocument<256> doc;
+    doc["phase"] = pomodoro.phaseName();
+    doc["phase_id"] = (int)pomodoro.getPhase();
+    doc["remaining"] = pomodoro.getRemainingSec();
+    doc["total"] = pomodoro.getTotalSec();
+    doc["sessions"] = pomodoro.getCompletedSessions();
+    doc["running"] = pomodoro.isRunning();
+    doc["paused"] = pomodoro.isPaused();
+
+    char buf[256];
+    serializeJson(doc, buf, sizeof(buf));
+    server->send(200, "application/json", buf);
+    return;
+  }
+
+  // POST
+  String body = server->arg("plain");
+  StaticJsonDocument<128> doc;
+  DeserializationError error = deserializeJson(doc, body);
+
+  if (error) {
+    server->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+    return;
+  }
+
+  const char* action = doc["action"];
+  if (!action) {
+    server->send(400, "application/json", "{\"error\":\"Missing action\"}");
+    return;
+  }
+
+  StaticJsonDocument<128> resp;
+
+  if (strcmp(action, "start") == 0) {
+    unsigned long minutes = doc["minutes"] | 25;
+    pomodoro.startWork(minutes);
+    switchMode(MODE_POMODORO);
+    resp["ok"] = true;
+    resp["phase"] = "work";
+    resp["minutes"] = minutes;
+  } else if (strcmp(action, "break") == 0) {
+    unsigned long minutes = doc["minutes"] | 5;
+    pomodoro.startBreak(minutes);
+    resp["ok"] = true;
+    resp["phase"] = "break";
+    resp["minutes"] = minutes;
+  } else if (strcmp(action, "pause") == 0) {
+    pomodoro.pause();
+    resp["ok"] = true;
+  } else if (strcmp(action, "resume") == 0) {
+    pomodoro.resume();
+    resp["ok"] = true;
+  } else if (strcmp(action, "reset") == 0) {
+    pomodoro.reset();
+    resp["ok"] = true;
+  } else if (strcmp(action, "skip") == 0) {
+    pomodoro.skip();
+    resp["ok"] = true;
+  } else {
+    server->send(400, "application/json", "{\"error\":\"Unknown action\"}");
+    return;
+  }
+
+  char buf[128];
+  serializeJson(resp, buf, sizeof(buf));
+  server->send(200, "application/json", buf);
+}
+
+void NaoNaoServer::handleSleep() {
+  String json = sleepTracker.getSleepSummary();
+  server->send(200, "application/json", json);
+}
+
+void NaoNaoServer::handleNight() {
+  if (server->method() == HTTP_GET) {
+    StaticJsonDocument<192> doc;
+    doc["enabled"] = smartNight.isEnabled();
+    doc["state"] = smartNight.stateName();
+    doc["brightness"] = smartNight.getTargetBrightness();
+
+    char buf[192];
+    serializeJson(doc, buf, sizeof(buf));
+    server->send(200, "application/json", buf);
+    return;
+  }
+
+  // POST
+  String body = server->arg("plain");
+  StaticJsonDocument<128> doc;
+  DeserializationError error = deserializeJson(doc, body);
+
+  if (error) {
+    server->send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+    return;
+  }
+
+  StaticJsonDocument<128> resp;
+
+  if (doc.containsKey("enabled")) {
+    smartNight.setEnabled(doc["enabled"].as<bool>());
+    resp["ok"] = true;
+    resp["enabled"] = smartNight.isEnabled();
+  }
+  if (doc.containsKey("dark_speed")) {
+    smartNight.setDarkSpeed(doc["dark_speed"].as<int>());
+  }
+  if (doc.containsKey("bright_speed")) {
+    smartNight.setBrightSpeed(doc["bright_speed"].as<int>());
   }
 
   char buf[128];

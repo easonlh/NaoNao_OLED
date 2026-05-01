@@ -2,7 +2,7 @@
 
 ## 1. 产品概述
 
-NaoNao_OLED 是一款基于 ESP32 的智能桌面显示屏，通过 0.96 寸 SSD1306 OLED 屏幕展示时间、通知、天气、金融数据和智能家居状态。支持 Web UI 和 HTTP API 远程交互，可集成 OpenClaw AI 助手和 MQTT 智能家居平台。
+NaoNao_OLED 是一款基于 ESP32 的智能桌面显示屏，通过 0.96 寸 SSD1306 OLED 屏幕展示时间、通知、天气、金融数据、室内环境和智能家居状态。支持 Web UI 和 HTTP API 远程交互，可集成 OpenClaw AI 助手和 MQTT 智能家居平台。具备智能夜灯、番茄钟、睡眠追踪等主动式功能。
 
 ## 2. 功能规格
 
@@ -97,6 +97,50 @@ NaoNao_OLED 是一款基于 ESP32 的智能桌面显示屏，通过 0.96 寸 SSD
 - 通过 `.env` 配置主机名和密码
 - 未配置时自动禁用
 
+### 2.15 温湿度传感器模式
+- 数据源：DHT11 温湿度传感器，DATA → GPIO5 (D5)
+- 采样间隔：2 秒
+- 显示内容：室内温度（大字体）、湿度百分比、舒适度标签、体感温度
+- 舒适度等级：舒适、偏热、偏冷、潮湿、干燥、闷热、寒冷干燥
+- 体感温度：基于 Rothfusz 公式计算（仅高温时生效）
+- **联动功能**：
+  - MQTT 自动发布温湿度数据
+  - 室内/室外温度对比（DHT11 实测 vs 天气 API）
+  - 高温/低温报警推送通知
+
+### 2.16 番茄钟模式
+- 工作/休息循环计时器
+- 默认：25 分钟专注 → 5 分钟休息 → 每 4 轮长休息 15 分钟
+- 时长可自定义（通过 API `minutes` 参数）
+- 底部进度条 + 阶段标识 + 完成轮次计数
+- **舵机物理提醒**：阶段切换时舵机自动旋转 1.5 秒
+- Web UI 提供快捷控制按钮
+
+### 2.17 室内外温度对比模式
+- 左侧显示 DHT11 室内实测温度 + 湿度
+- 右侧显示天气 API 室外温度 + 湿度
+- 底部温差提示：开窗通风 / 关窗保暖 / 舒适
+- 温差阈值：5°C（可通过配置调整）
+
+### 2.18 睡眠追踪模式
+- 数据源：光敏传感器天黑/天亮边缘检测
+- 自动记录每天"天黑→天亮"时间段（最短 30 分钟）
+- 存储最近 7 天睡眠记录
+- 显示：当前状态（睡眠/清醒）、上次睡眠时长、7 天平均
+- API `/sleep` 查询详细数据
+- 不需要额外硬件
+
+### 2.19 智能夜灯模式
+- 光敏传感器检测到天黑时自动触发：
+  - 舵机关窗（顺时针 2 秒）
+  - OLED 亮度降至最低
+  - 唤醒屏幕显示"晚安"动画
+- 天亮时自动触发：
+  - 舵机开窗（逆时针 2 秒）
+  - OLED 亮度恢复
+  - 唤醒屏幕显示"早安"动画
+- 可通过 API 启用/禁用，自定义舵机方向和时长
+
 ## 3. API 参考
 
 ### HTTP 端点
@@ -118,6 +162,12 @@ NaoNao_OLED 是一款基于 ESP32 的智能桌面显示屏，通过 0.96 寸 SSD
 | `/servo` | POST | `{"speed":120}` 或 `{"action":"stop"}` | `{"ok":true}` |
 | `/light` | GET | - | `{"raw":1500,"state":"normal","is_dark":false}` |
 | `/light` | POST | `{"action":"trigger_servo_dark","speed":0,"duration":2000}` | `{"ok":true}` |
+| `/dht` | GET | - | `{"valid":true,"temperature":25.3,"humidity":65,"heat_index":26.1,"comfort":"舒适"}` |
+| `/pomodoro` | GET | - | `{"phase":"专注","remaining":1500,"sessions":0,"running":false}` |
+| `/pomodoro` | POST | `{"action":"start","minutes":25}` | `{"ok":true,"phase":"work"}` |
+| `/sleep` | GET | - | `{"currently_sleeping":false,"last_sleep_minutes":480,"average_sleep_minutes":420}` |
+| `/night` | GET | - | `{"enabled":true,"state":"idle","brightness":255}` |
+| `/night` | POST | `{"enabled":false}` | `{"ok":true,"enabled":false}` |
 
 ### Timer Actions
 - `start` - 开始倒计时，需指定 `duration`（秒）
@@ -156,6 +206,7 @@ NaoNao_OLED 是一款基于 ESP32 的智能桌面显示屏，通过 0.96 寸 SSD
 | 显示屏 | SSD1306 128x64 I2C OLED | 1 | 信息展示 |
 | 舵机 | SG90 360° 连续旋转 | 1 | 机械控制 |
 | 光敏传感器 | 4 针光敏电阻 (KY-018) | 1 | 环境光检测 |
+| 温湿度传感器 | DHT11 3 针模块 | 1 | 室内温湿度 |
 | 面包板 | 830 孔面包板 | 1 | 电路连接 |
 
 ### 5.2 引脚映射表
@@ -173,6 +224,9 @@ NaoNao_OLED 是一款基于 ESP32 的智能桌面显示屏，通过 0.96 寸 SSD
 | 光敏 | D0(数字) | GPIO4 | 阈值开关 |
 | 光敏 | VCC | 3.3V | 信号电平匹配 |
 | 光敏 | GND | GND | 地 |
+| DHT11 | DATA | GPIO5 | 单总线数据 |
+| DHT11 | VCC | 3.3V | 电源 |
+| DHT11 | GND | GND | 地 |
 
 ### 5.3 引脚占用统计
 
@@ -181,9 +235,9 @@ NaoNao_OLED 是一款基于 ESP32 的智能桌面显示屏，通过 0.96 寸 SSD
 | I2C | 2 (21,22) | - |
 | ADC | 1 (34) | ADC2 不可与 WiFi 同时使用，剩余 GPIO32/33/35 |
 | LEDC/PWM | 1 (18) | 15 个通道 |
-| GPIO | 1 (4) | 大部分 GPIO 可用 |
-| Flash | 50% (1.57MB/3MB) | ~1.43MB 剩余 |
-| RAM | 51KB/327KB (15.7%) | ~276KB 剩余 |
+| GPIO | 2 (4,5) | 大部分 GPIO 可用 |
+| Flash | ~50% (1.58MB/3MB) | ~1.42MB 剩余 |
+| RAM | ~16% (52KB/327KB) | ~276KB 剩余 |
 
 ## 6. 技术约束
 

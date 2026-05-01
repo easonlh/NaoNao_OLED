@@ -15,7 +15,11 @@ enum ScreenMode {
   MODE_PRICE,        // 6 - 加密货币价格模式
   MODE_GITHUB,       // 7 - GitHub Star 模式
   MODE_MQTT_MONITOR, // 8 - MQTT 消息模式
-  MODE_LIGHT_SENSOR  // 9 - 光敏传感器模式
+  MODE_LIGHT_SENSOR,     // 9 - 光敏传感器模式
+  MODE_DHT_SENSOR,       // 10 - 温湿度传感器模式
+  MODE_POMODORO,         // 11 - 番茄钟模式
+  MODE_INDOOR_OUTDOOR,   // 12 - 室内外温度对比
+  MODE_SLEEP             // 13 - 睡眠追踪模式
 };
 
 extern ScreenMode currentMode;
@@ -37,6 +41,10 @@ void drawPriceDisplay(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
 void drawGitHubStars(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
 void drawMqttMonitor(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
 void drawLightSensor(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
+void drawDhtSensor(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
+void drawPomodoro(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
+void drawIndoorOutdoor(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
+void drawSleepTracker(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
 void drawScreenSaver(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2);
 
 // 状态栏

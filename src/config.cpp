@@ -52,8 +52,20 @@ const unsigned long GITHUB_FETCH_INTERVAL_MS = 600000;
 // ==================== 倒计时默认时长 ====================
 const unsigned long TIMER_DEFAULT_DURATION_SEC = 300;
 
+// ==================== DHT11 温湿度传感器 ====================
+const int DHT_PIN = 5;
+const float DHT_TEMP_ALERT_HIGH = 35.0f;  // 高温报警阈值 °C
+const float DHT_TEMP_ALERT_LOW = 5.0f;    // 低温报警阈值 °C
+
+// ==================== 番茄钟配置 ====================
+const int POMO_WORK_MIN = 25;
+const int POMO_BREAK_MIN = 5;
+
+// ==================== 室内外温差 ====================
+const float INDOOR_OUTDOOR_TEMP_DIFF = 5.0f;  // 温差阈值 °C
+
 // ==================== 显示模式轮播配置 ====================
-const int NUM_DISPLAY_MODES = 10;
+const int NUM_DISPLAY_MODES = 14;
 const bool MODE_ENABLED[] = {
   true,  // MODE_CLOCK
   true,  // MODE_DATE
@@ -65,4 +77,8 @@ const bool MODE_ENABLED[] = {
   true,  // MODE_GITHUB
   true,  // MODE_MQTT_MONITOR
   true,  // MODE_LIGHT_SENSOR
+  true,  // MODE_DHT_SENSOR
+  true,  // MODE_POMODORO
+  true,  // MODE_INDOOR_OUTDOOR
+  true,  // MODE_SLEEP
 };

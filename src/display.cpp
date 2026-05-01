@@ -8,6 +8,10 @@
 #include "countdown_timer.h"
 #include "mqtt_client_wrapper.h"
 #include "light_sensor.h"
+#include "dht_sensor.h"
+#include "pomodoro.h"
+#include "sleep_tracker.h"
+#include "weather_client.h"
 #include <time.h>
 #include <WiFi.h>
 
@@ -497,6 +501,240 @@ void drawLightSensor(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2) {
   drawStatusBar(u8g2);
 }
 
+void drawDhtSensor(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2) {
+  DhtData& dht = dhtSensor.getData();
+
+  if (!dht.valid) {
+    u8g2.setFont(u8g2_font_wqy12_t_gb2312);
+    u8g2.setCursor(15, 30);
+    u8g2.print("温湿度加载中...");
+    drawStatusBar(u8g2);
+    return;
+  }
+
+  // 温度 - 大字体居中
+  char tempStr[16];
+  snprintf(tempStr, sizeof(tempStr), "%.1f", dht.temperature);
+  u8g2.setFont(u8g2_font_logisoso32_tf);
+  u8g2.setCursor(2, 40);
+  u8g2.print(tempStr);
+
+  // 温度单位 °C
+  u8g2.setFont(u8g2_font_ncenB14_tr);
+  int tempW = u8g2.getUTF8Width(tempStr);
+  u8g2.setCursor(2 + tempW * 2 + 2, 40);
+  u8g2.print("C");
+
+  // 湿度 - 右侧显示
+  char humStr[16];
+  snprintf(humStr, sizeof(humStr), "%.0f%%", dht.humidity);
+  u8g2.setFont(u8g2_font_ncenB14_tr);
+  u8g2.setCursor(90, 28);
+  u8g2.print(humStr);
+
+  // 水滴图标（简单画法）
+  int dx = 100, dy = 36;
+  u8g2.drawDisc(dx, dy + 4, 4, U8G2_DRAW_ALL);
+  u8g2.drawTriangle(dx - 3, dy + 2, dx + 3, dy + 2, dx, dy - 4);
+
+  // 舒适度标签 + 体感温度
+  u8g2.setFont(u8g2_font_wqy12_t_gb2312);
+  u8g2.setCursor(2, 56);
+  u8g2.print(dhtSensor.comfortName());
+
+  // 体感温度
+  char hiStr[24];
+  snprintf(hiStr, sizeof(hiStr), "体感%.0fC", dht.heatIndex);
+  u8g2.setCursor(60, 56);
+  u8g2.print(hiStr);
+
+  // 标题
+  u8g2.setFont(u8g2_font_wqy12_t_gb2312);
+  u8g2.setCursor(30, 12);
+  u8g2.print("室内温湿度");
+
+  drawStatusBar(u8g2);
+}
+
+void drawPomodoro(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2) {
+  PomodoroPhase phase = pomodoro.getPhase();
+
+  // 标题 + 阶段
+  u8g2.setFont(u8g2_font_wqy12_t_gb2312);
+  u8g2.setCursor(30, 14);
+  u8g2.print(pomodoro.phaseName());
+
+  // Session 计数
+  if (phase != POMO_IDLE) {
+    u8g2.setFont(u8g2_font_6x12_tr);
+    u8g2.setCursor(100, 14);
+    u8g2.print("#");
+    u8g2.print(pomodoro.getCompletedSessions() + 1);
+  }
+
+  // 时间显示
+  unsigned long remaining = pomodoro.getRemainingSec();
+  unsigned long mins = remaining / 60;
+  unsigned long secs = remaining % 60;
+
+  if (phase == POMO_IDLE) {
+    u8g2.setFont(u8g2_font_wqy12_t_gb2312);
+    u8g2.setCursor(15, 38);
+    u8g2.print("通过 API 启动");
+    u8g2.setCursor(15, 52);
+    u8g2.print("或 Web UI 控制");
+  } else {
+    char timeStr[16];
+    snprintf(timeStr, sizeof(timeStr), "%02lu:%02lu", mins, secs);
+    u8g2.setFont(u8g2_font_logisoso32_tf);
+    u8g2.setCursor(5, 45);
+    u8g2.print(timeStr);
+
+    // 进度条
+    unsigned long total = pomodoro.getTotalSec();
+    if (total > 0) {
+      int barWidth = (remaining * 120) / total;
+      u8g2.drawFrame(4, 56, 120, 6);
+      u8g2.drawBox(5, 57, max(barWidth - 1, 0), 4);
+    }
+
+    // 暂停指示
+    if (pomodoro.isPaused()) {
+      u8g2.setFont(u8g2_font_wqy12_t_gb2312);
+      u8g2.setCursor(100, 45);
+      u8g2.print("暂停");
+    }
+  }
+
+  drawStatusBar(u8g2);
+}
+
+void drawIndoorOutdoor(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2) {
+  DhtData& dht = dhtSensor.getData();
+  WeatherData& weather = weatherClient.getData();
+
+  // 标题
+  u8g2.setFont(u8g2_font_wqy12_t_gb2312);
+  u8g2.setCursor(25, 14);
+  u8g2.print("室内外对比");
+
+  u8g2.drawVLine(64, 16, 38);
+
+  // 左侧 - 室内
+  u8g2.setFont(u8g2_font_6x12_tr);
+  u8g2.setCursor(8, 26);
+  u8g2.print("INDOOR");
+
+  if (dht.valid) {
+    char inStr[16];
+    snprintf(inStr, sizeof(inStr), "%.1f", dht.temperature);
+    u8g2.setFont(u8g2_font_ncenB14_tr);
+    u8g2.setCursor(2, 44);
+    u8g2.print(inStr);
+    u8g2.print("C");
+
+    u8g2.setFont(u8g2_font_6x12_tr);
+    u8g2.setCursor(8, 54);
+    u8g2.print("H:");
+    u8g2.print((int)dht.humidity);
+    u8g2.print("%");
+  } else {
+    u8g2.setFont(u8g2_font_6x12_tr);
+    u8g2.setCursor(8, 40);
+    u8g2.print("N/A");
+  }
+
+  // 右侧 - 室外
+  u8g2.setFont(u8g2_font_6x12_tr);
+  u8g2.setCursor(72, 26);
+  u8g2.print("OUTDOOR");
+
+  if (weather.valid) {
+    char outStr[16];
+    snprintf(outStr, sizeof(outStr), "%.1f", weather.temperature);
+    u8g2.setFont(u8g2_font_ncenB14_tr);
+    u8g2.setCursor(68, 44);
+    u8g2.print(outStr);
+    u8g2.print("C");
+
+    u8g2.setFont(u8g2_font_6x12_tr);
+    u8g2.setCursor(72, 54);
+    u8g2.print("H:");
+    u8g2.print((int)weather.humidity);
+    u8g2.print("%");
+  } else {
+    u8g2.setFont(u8g2_font_6x12_tr);
+    u8g2.setCursor(72, 40);
+    u8g2.print("N/A");
+  }
+
+  // 底部温差提示
+  if (dht.valid && weather.valid) {
+    float diff = dht.temperature - weather.temperature;
+    u8g2.setFont(u8g2_font_wqy12_t_gb2312);
+    u8g2.setCursor(2, 62);
+    if (diff > 5.0f) {
+      u8g2.print("室内偏热 开窗通风");
+    } else if (diff < -5.0f) {
+      u8g2.print("室内偏冷 关窗保暖");
+    } else {
+      u8g2.print("温差不大 舒适");
+    }
+  }
+
+  drawStatusBar(u8g2);
+}
+
+void drawSleepTracker(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2) {
+  // 标题
+  u8g2.setFont(u8g2_font_wqy12_t_gb2312);
+  u8g2.setCursor(30, 14);
+  u8g2.print("睡眠追踪");
+
+  // 当前状态
+  u8g2.setFont(u8g2_font_6x12_tr);
+  u8g2.setCursor(5, 28);
+  if (sleepTracker.isCurrentlySleeping()) {
+    u8g2.print("Status: Sleeping");
+  } else {
+    u8g2.print("Status: Awake");
+  }
+
+  // 上次睡眠时长
+  unsigned long lastMin = sleepTracker.getLastSleepMinutes();
+  u8g2.setCursor(5, 42);
+  u8g2.print("Last: ");
+  if (lastMin > 0) {
+    u8g2.print(lastMin / 60);
+    u8g2.print("h");
+    u8g2.print(lastMin % 60);
+    u8g2.print("m");
+  } else {
+    u8g2.print("No data");
+  }
+
+  // 平均睡眠时长
+  unsigned long avgMin = sleepTracker.getAverageSleepMinutes();
+  u8g2.setCursor(5, 56);
+  u8g2.print("Avg:  ");
+  if (avgMin > 0) {
+    u8g2.print(avgMin / 60);
+    u8g2.print("h");
+    u8g2.print(avgMin % 60);
+    u8g2.print("m");
+  } else {
+    u8g2.print("No data");
+  }
+
+  // 记录数
+  u8g2.setCursor(90, 56);
+  u8g2.print("(");
+  u8g2.print(sleepTracker.getRecordCount());
+  u8g2.print("d)");
+
+  drawStatusBar(u8g2);
+}
+
 void drawScreenSaver(U8G2_SSD1306_128X64_NONAME_F_HW_I2C &u8g2) {
   struct tm timeinfo;
   if (getLocalTime(&timeinfo)) {
@@ -548,6 +786,21 @@ ScreenMode getNextEnabledMode(ScreenMode current) {
 
     // Skip light sensor mode if sensor not initialized
     if (next == MODE_LIGHT_SENSOR && lightSensor.getRawValue() == 0) {
+      continue;
+    }
+
+    // Skip DHT sensor mode if data not ready
+    if (next == MODE_DHT_SENSOR && !dhtSensor.isReady()) {
+      continue;
+    }
+
+    // Skip indoor/outdoor if DHT not ready
+    if (next == MODE_INDOOR_OUTDOOR && !dhtSensor.isReady()) {
+      continue;
+    }
+
+    // Skip sleep mode if no records yet
+    if (next == MODE_SLEEP && sleepTracker.getRecordCount() == 0 && !sleepTracker.isCurrentlySleeping()) {
       continue;
     }
 

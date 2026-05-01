@@ -17,6 +17,10 @@
 #include "mqtt_client_wrapper.h"
 #include "servo_control.h"
 #include "light_sensor.h"
+#include "dht_sensor.h"
+#include "pomodoro.h"
+#include "sleep_tracker.h"
+#include "smart_night.h"
 
 // ==================== 硬件初始化 ====================
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, U8X8_PIN_NONE);
@@ -235,6 +239,18 @@ void setup() {
   // 初始化光敏传感器
   lightSensor.begin();
 
+  // 初始化温湿度传感器
+  dhtSensor.begin();
+
+  // 初始化番茄钟
+  pomodoro.begin();
+
+  // 初始化睡眠追踪
+  sleepTracker.begin();
+
+  // 初始化智能夜灯
+  smartNight.begin();
+
   Serial.println("Setup complete!");
 }
 
@@ -271,23 +287,35 @@ void loop() {
   // 更新光敏传感器
   lightSensor.update();
 
-  // 光敏联动舵机（非阻塞）
+  // 更新温湿度传感器
+  dhtSensor.update();
+
+  // 更新番茄钟
+  pomodoro.update();
+  if (pomodoro.needsServoAlert()) {
+    servoCtrl.setSpeed(POMO_SERVO_ALERT_SPEED);
+    servoTriggerActive = true;
+    servoTriggerStart = millis();
+    servoTriggerDuration = POMO_SERVO_ALERT_MS;
+    Serial.println("Pomodoro: Servo alert triggered!");
+  }
+
+  // 更新智能夜灯
+  smartNight.update();
+
+  // 光敏联动：智能夜灯 + 睡眠追踪
   if (lightSensor.justGotDark()) {
-    servoCtrl.setSpeed(0);  // 顺时针
-    servoTriggerActive = true;
-    servoTriggerStart = millis();
-    servoTriggerDuration = 2000;
+    smartNight.onLightChanged(true);
+    sleepTracker.onLightChanged(true);
     lastActivityTime = millis();
     screenSaverActive = false;
-    Serial.println("Light→dark: Servo triggered!");
+    Serial.println("Light→dark: SmartNight + SleepTracker notified!");
   } else if (lightSensor.justGotBright()) {
-    servoCtrl.setSpeed(180);  // 逆时针
-    servoTriggerActive = true;
-    servoTriggerStart = millis();
-    servoTriggerDuration = 2000;
+    smartNight.onLightChanged(false);
+    sleepTracker.onLightChanged(false);
     lastActivityTime = millis();
     screenSaverActive = false;
-    Serial.println("Light→bright: Servo triggered!");
+    Serial.println("Light→bright: SmartNight + SleepTracker notified!");
   }
 
   // 非阻塞：到时间自动停止舵机
@@ -361,6 +389,22 @@ void loop() {
 
       case MODE_LIGHT_SENSOR:
         drawLightSensor(u8g2);
+        break;
+
+      case MODE_DHT_SENSOR:
+        drawDhtSensor(u8g2);
+        break;
+
+      case MODE_POMODORO:
+        drawPomodoro(u8g2);
+        break;
+
+      case MODE_INDOOR_OUTDOOR:
+        drawIndoorOutdoor(u8g2);
+        break;
+
+      case MODE_SLEEP:
+        drawSleepTracker(u8g2);
         break;
     }
   }

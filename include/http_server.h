@@ -20,6 +20,10 @@ private:
   void handleReboot();
   void handleServo();
   void handleLight();
+  void handleDht();
+  void handlePomodoro();
+  void handleSleep();
+  void handleNight();
   String generateWebPage();
 
 public:
